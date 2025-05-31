@@ -31,7 +31,6 @@
         let sales = [];
 
         // Autenticação anônima para que o usuário possa interagir com o Firestore
-        // Corrigido para a sintaxe modular: signInAnonymously(auth)
         signInAnonymously(auth).catch((error) => {
             console.error("Erro na autenticação anônima:", error);
             alert("Não foi possível conectar ao banco de dados. Verifique sua conexão ou as configurações do Firebase.");
@@ -400,7 +399,6 @@
         // --- Inicialização e Listeners do Firestore ---
         document.addEventListener('DOMContentLoaded', async () => {
             // Espera a autenticação anônima ser concluída
-            // Corrigido para a sintaxe modular: signInAnonymously(auth)
             await signInAnonymously(auth).catch(error => {
                 console.error("Erro na autenticação anônima durante o carregamento:", error);
                 alert("Não foi possível conectar ao banco de dados. Verifique sua conexão ou as configurações do Firebase.");
@@ -411,70 +409,76 @@
                 const purchasesSnapshot = await getDocs(collection(db, 'purchases'));
                 const salesSnapshot = await getDocs(collection(db, 'sales'));
 
-                if (purchasesSnapshot.empty && salesSnapshot.empty) {
-                    console.log("Banco de dados vazio. Populando com dados iniciais...");
-                    const initialPurchases = [
-                        { date: '2025-04-02', device: 'iPhone 16 Pro 256GB', cost: 6449.00 },
-                        { date: '2025-04-20', device: 'Poco X7 Pro 5G 512GB', cost: 2150.00 },
-                        { date: '2025-05-30', device: 'Apple Watch SE 44mm', cost: 1700.00 },
-                    ];
+                const initialPurchases = [
+                    { date: '2025-04-02', device: 'iPhone 16 Pro 256GB', cost: 6449.00 },
+                    { date: '2025-04-20', device: 'Poco X7 Pro 5G 512GB', cost: 2150.00 },
+                    { date: '2025-05-30', device: 'Apple Watch SE 44mm', cost: 1700.00 },
+                ];
 
-                    const initialSalesData = [
-                        {
-                            customer: 'Junior Pereira Agehab',
-                            device: 'iPhone 16 Pro 256GB',
-                            saleDate: '2025-04-02',
-                            salePrice: 7800.00,
-                            cost: 6449.00,
-                            downPayment: 2500.00,
-                            installments: [
-                                { amount: 1100.00, paid: false },
-                                { amount: 1100.00, paid: false },
-                                { amount: 1100.00, paid: false },
-                                { amount: 1100.00, paid: false },
-                                { amount: 1100.00, paid: false },
-                            ],
-                        },
-                        {
-                            customer: 'Denilson',
-                            device: 'Poco X7 Pro 5G 512GB',
-                            saleDate: '2025-04-20',
-                            salePrice: 2600.00,
-                            cost: 2150.00,
-                            downPayment: 1300.00,
-                            installments: [
-                                { amount: 325.00, paid: false },
-                                { amount: 325.00, paid: false },
-                                { amount: 325.00, paid: false },
-                                { amount: 325.00, paid: false },
-                            ],
-                        },
-                        {
-                            customer: 'Junior Pereira Agehab',
-                            device: 'Apple Watch SE 44mm',
-                            saleDate: '2025-05-30',
-                            salePrice: 2150.00,
-                            cost: 1700.00,
-                            downPayment: 450.00,
-                            installments: [
-                                { amount: 560.00, paid: false },
-                                { amount: 560.00, paid: false },
-                                { amount: 580.00, paid: false },
-                            ],
-                        },
-                    ];
+                const initialSalesData = [
+                    {
+                        customer: 'Junior Pereira Agehab',
+                        device: 'iPhone 16 Pro 256GB',
+                        saleDate: '2025-04-02',
+                        salePrice: 7800.00,
+                        cost: 6449.00,
+                        downPayment: 2500.00,
+                        installments: [
+                            { amount: 1100.00, paid: false },
+                            { amount: 1100.00, paid: false },
+                            { amount: 1100.00, paid: false },
+                            { amount: 1100.00, paid: false },
+                            { amount: 1100.00, paid: false },
+                        ],
+                    },
+                    {
+                        customer: 'Denilson',
+                        device: 'Poco X7 Pro 5G 512GB',
+                        saleDate: '2025-04-20',
+                        salePrice: 2600.00,
+                        cost: 2150.00,
+                        downPayment: 1300.00,
+                        installments: [
+                            { amount: 325.00, paid: false },
+                            { amount: 325.00, paid: false },
+                            { amount: 325.00, paid: false },
+                            { amount: 325.00, paid: false },
+                        ],
+                    },
+                    {
+                        customer: 'Junior Pereira Agehab',
+                        device: 'Apple Watch SE 44mm',
+                        saleDate: '2025-05-30',
+                        salePrice: 2150.00,
+                        cost: 1700.00,
+                        downPayment: 450.00,
+                        installments: [
+                            { amount: 560.00, paid: false },
+                            { amount: 560.00, paid: false },
+                            { amount: 580.00, paid: false },
+                        ],
+                    },
+                ];
 
-                    // Adiciona as datas de vencimento às parcelas e salva no Firestore
+                if (purchasesSnapshot.empty) {
+                    console.log("Coleção 'purchases' vazia. Populando com dados iniciais...");
                     for (const purchase of initialPurchases) {
                         await addPurchaseToFirestore(purchase);
                     }
+                }
+
+                if (salesSnapshot.empty) {
+                    console.log("Coleção 'sales' vazia. Populando com dados iniciais...");
                     for (const sale of initialSalesData) {
                         sale.installments.forEach((inst, index) => {
                             inst.dueDate = calculateInstallmentDueDate(sale.saleDate, index);
                         });
                         await addSaleToFirestore(sale);
                     }
-                    console.log("Dados iniciais populados com sucesso.");
+                }
+
+                if (purchasesSnapshot.empty || salesSnapshot.empty) {
+                    console.log("Dados iniciais populados (se necessário).");
                 }
             };
 
