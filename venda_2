@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planilha de Controle Financeiro Interativa com Firebase (Modular SDK)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, updateDoc, doc, query, where, onSnapshot, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-auth.js";
+
+        // Suas credenciais do Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyAMH82yDdZ2CnDSiosDUCJv2sXTjjRHemg",
+            authDomain: "controlevenda-ef7db.firebaseapp.com",
+            projectId: "controlevenda-ef7db",
+            storageBucket: "controlevenda-ef7db.firebasestorage.app",
+            messagingSenderId: "468868061475",
+            appId: "1:468868061475:web:e4848ef26c1f1eeaa61496"
+        };
+
+        // Inicializar Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        const INITIAL_CAPITAL = 15000;
+        let purchases = [];
+        let sales = [];
+
+        // Autenticação anônima para que o usuário possa interagir com o Firestore
+        signInAnonymously(auth).catch((error) => {
+            console.error("Erro na autenticação anônima:", error);
+            alert("Não foi possível conectar ao banco de dados. Verifique sua conexão ou as configurações do Firebase.");
+        });
+
+        const formatCurrency = (value) => {
+            return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        };
+
+        const calculateInstallmentDueDate = (saleDateStr, installmentIndex) => {
+            const saleDate = new Date(saleDateStr + 'T00:00:00');
+            let dueDate = new Date(saleDate.getFullYear(), saleDate.getMonth() + 1 + installmentIndex, 10);
+            return dueDate.toISOString().split('T')[0];
+        };
+
+        // --- Funções de Interação com Firestore ---
+
+        const addPurchaseToFirestore = async (purchaseData) => {
+            try {
+                await addDoc(collection(db, 'purchases'), purchaseData);
+            } catch (e) {
+                console.error("Erro ao adicionar compra: ", e);
+                alert("Erro ao salvar a compra. Tente novamente.");
+            }
+        };
+
+        const addSaleToFirestore = async (saleData) => {
+            try {
+                await addDoc(collection(db, 'sales'), saleData);
+            } catch (e) {
+                console.error("Erro ao adicionar venda: ", e);
+                alert("Erro ao salvar a venda. Tente novamente.");
+            }
+        };
+
+        const updateSaleInstallmentStatusInFirestore = async (saleId, updatedInstallments) => {
+            try {
+                await updateDoc(doc(db, 'sales', saleId), { installments: updatedInstallments });
+            } catch (e) {
+                console.error("Erro ao atualizar parcela: ", e);
+                alert("Erro ao atualizar o status da parcela. Tente novamente.");
+            }
+        };
+
+        // --- Funções de Renderização (Agora com base em dados de Firestore) ---
+
+        const renderSummary = () => {
+            const totalSpent = purchases.reduce((sum, item) => sum + item.cost, 0);
+            const totalReceivedFromDownPayments = sales.reduce((sum, sale) => sum + sale.downPayment, 0);
+            const totalReceivedFromPaidInstallments = sales.reduce((sum, sale) =>
+                sum + sale.installments.filter(inst => inst.paid).reduce((acc, inst) => acc + inst.amount, 0), 0);
+            const totalReceived = totalReceivedFromDownPayments + totalReceivedFromPaidInstallments;
+
+            const totalExpectedReceivables = sales.reduce((sum, sale) =>
+                sum + sale.downPayment + sale.installments.reduce((acc, inst) => acc + inst.amount, 0), 0);
+            const totalCostOfSoldItems = sales.reduce((sum, sale) => sum + sale.cost, 0);
+
+            const currentBalance = INITIAL_CAPITAL - totalSpent + totalReceived;
+            const netProfit = totalExpectedReceivables - totalCostOfSoldItems;
+
+            document.getElementById('totalSpent').textContent = formatCurrency(totalSpent);
+            document.getElementById('currentBalance').textContent = formatCurrency(currentBalance);
+            document.getElementById('currentBalance').className = currentBalance >= 0 ? 'text-xl font-bold positive' : 'text-xl font-bold negative';
+
+            const balanceWarning = document.getElementById('balanceWarning');
+            if (totalSpent > INITIAL_CAPITAL) {
+                balanceWarning.classList.remove('hidden');
+            } else {
+                balanceWarning.classList.add('hidden');
+            }
+
+            document.getElementById('netProfit').textContent = formatCurrency(netProfit);
+            document.getElementById('netProfit').className = netProfit >= 0 ? 'text-xl font-bold positive' : 'text-xl font-bold negative';
+        };
+
+        const renderPurchases = () => {
+            const tbody = document.getElementById('purchasesTableBody');
+            tbody.innerHTML = '';
+
+            purchases.forEach(purchase => {
+                const row = tbody.insertRow();
+                row.insertCell().textContent = new Date(purchase.date + 'T00:00:00').toLocaleDateString('pt-BR');
+                row.insertCell().textContent = purchase.device;
+                row.insertCell().textContent = formatCurrency(purchase.cost);
+            });
+        };
+
+        const markInstallmentAsPaid = async (saleId, installmentIndex) => {
+            const sale = sales.find(s => s.id === saleId);
+            if (sale) {
+                sale.installments[installmentIndex].paid = true;
+                await updateSaleInstallmentStatusInFirestore(saleId, sale.installments);
+            }
+        };
+
+        const renderSales = () => {
+            const tbody = document.getElementById('salesTableBody');
+            tbody.innerHTML = '';
+
+            sales.forEach((sale) => {
+                const row = tbody.insertRow();
+                const totalInstallmentsValue = sale.installments.reduce((sum, inst) => sum + inst.amount, 0);
+                const paidInstallmentsValue = sale.installments.filter(inst => inst.paid).reduce((sum, inst) => sum + inst.amount, 0);
+                const remainingToPay = (sale.salePrice - sale.downPayment) - paidInstallmentsValue;
+
+                const paidCount = sale.installments.filter(inst => inst.paid).length;
+                const totalCount = sale.installments.length;
+
+                let installmentStatusText = '';
+                if (totalCount === 0) {
+                    installmentStatusText = 'À Vista (Quitado)';
+                } else if (paidCount === totalCount) {
+                    installmentStatusText = 'Todas Pagas';
+                } else {
+                    installmentStatusText = `${paidCount}/${totalCount} Pagas`;
+                }
+
+                row.insertCell().textContent = sale.customer;
+                row.insertCell().textContent = sale.device;
+                row.insertCell().textContent = new Date(sale.saleDate + 'T00:00:00').toLocaleDateString('pt-BR');
+                row.insertCell().textContent = formatCurrency(sale.salePrice);
+                row.insertCell().textContent = formatCurrency(sale.downPayment);
+
+                // Coluna de Status das Parcelas
+                const statusCell = row.insertCell();
+                statusCell.innerHTML = `<span class="${paidCount === totalCount ? 'paid-status' : 'unpaid-status'}">${installmentStatusText}</span>`;
+
+                // Coluna de Valor a Receber (R$)
+                const remainingCell = row.insertCell();
+                remainingCell.textContent = formatCurrency(remainingToPay < 0 ? 0 : remainingToPay); // Não mostra negativo
+                remainingCell.className = remainingToPay > 0 ? 'negative' : 'positive';
+
+                // Coluna de Ações (Ex: Marcar Parcela ou Ver Detalhes)
+                const actionsCell = row.insertCell();
+                if (totalCount > 0 && paidCount < totalCount) { // Se houver parcelas e nem todas pagas
+                    const payButton = document.createElement('button');
+                    payButton.textContent = 'Marcar Parcela'; // Ou "Ver/Pagar Parcelas"
+                    payButton.className = 'btn btn-success text-xs py-1 px-2';
+                    // Para simplificar, vou deixar o alerta. O ideal seria abrir um modal com a lista de parcelas.
+                    payButton.onclick = () => {
+                        alert(`Para marcar parcelas de ${sale.customer} (${sale.device}), a funcionalidade ideal seria um modal para visualizar todas as parcelas e marcar uma por uma. Por enquanto, a opção "Pagar Próxima" não está implementada individualmente aqui, mas o código para marcar como paga via onSnapshot está ativo.`);
+                        // Exemplo de como poderia ser:
+                        // const nextUnpaidIndex = sale.installments.findIndex(inst => !inst.paid);
+                        // if (nextUnpaidIndex !== -1) {
+                        //     markInstallmentAsPaid(sale.id, nextUnpaidIndex);
+                        // }
+                    };
+                    actionsCell.appendChild(payButton);
+                } else if (totalCount === 0) {
+                    actionsCell.textContent = 'À Vista';
+                } else {
+                    actionsCell.textContent = 'Todas Recebidas';
+                }
+            });
+        };
+
+        const renderMonthlyReceivables = () => {
+            const tbody = document.getElementById('monthlyReceivablesTableBody');
+            tbody.innerHTML = '';
+
+            const monthlyData = {};
+            const customers = new Set();
+
+            sales.forEach(sale => {
+                customers.add(sale.customer);
+                sale.installments.forEach((installment) => {
+                    if (!installment.paid) {
+                        const dueDate = new Date(installment.dueDate + 'T00:00:00');
+                        const monthYearKey = `${(dueDate.getMonth() + 1).toString().padStart(2, '0')}/${dueDate.getFullYear()}`;
+
+                        if (!monthlyData[monthYearKey]) {
+                            monthlyData[monthYearKey] = {};
+                        }
+                        if (!monthlyData[monthYearKey][sale.customer]) {
+                            monthlyData[monthYearKey][sale.customer] = 0;
+                        }
+                        monthlyData[monthYearKey][sale.customer] += installment.amount;
+                    }
+                });
+            });
+
+            const sortedMonths = Object.keys(monthlyData).sort((a, b) => {
+                const [monthA, yearA] = a.split('/').map(Number);
+                const [monthB, yearB] = b.split('/').map(Number);
+                if (yearA !== yearB) return yearA - yearB;
+                return monthA - monthB;
+            });
+
+            const monthlyHeaderRow = document.querySelector('#monthlyReceivablesTableBody').previousElementSibling.querySelector('thead tr');
+            monthlyHeaderRow.innerHTML = `<th class="rounded-tl-lg">Mês / Ano</th>`;
+            const sortedCustomers = Array.from(customers).sort();
+            sortedCustomers.forEach(customer => {
+                monthlyHeaderRow.innerHTML += `<th>${customer}</th>`;
+            });
+            monthlyHeaderRow.innerHTML += `<th class="rounded-tr-lg">Total Mensal (R$)</th>`;
+
+
+            sortedMonths.forEach(monthYearKey => {
+                const row = tbody.insertRow();
+                row.insertCell().textContent = monthYearKey;
+                let totalMonthly = 0;
+
+                sortedCustomers.forEach(customer => {
+                    const amount = monthlyData[monthYearKey][customer] || 0;
+                    row.insertCell().textContent = formatCurrency(amount);
+                    totalMonthly += amount;
+                });
+
+                const totalCell = row.insertCell();
+                totalCell.textContent = formatCurrency(totalMonthly);
+                totalCell.classList.add('font-bold');
+            });
+        };
+
+        const renderAll = () => {
+            renderSummary();
+            renderPurchases();
+            renderSales();
+            renderMonthlyReceivables();
+        };
+
+        // --- Funções de Pesquisa ---
+        const searchSalesByClient = async (clientName) => {
+            const resultsBody = document.getElementById('searchResultsTableBody');
+            resultsBody.innerHTML = '';
+            document.getElementById('searchResults').classList.add('hidden'); // Oculta resultados antigos
+
+            if (!clientName) {
+                alert('Por favor, digite o nome do cliente para pesquisar.');
+                return;
+            }
+
+            try {
+                // Consulta no Firestore (Modular API)
+                const q = query(collection(db, 'sales'), where('customer', '==', clientName));
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) {
+                    resultsBody.innerHTML = `<tr><td colspan="6" class="text-center py-4">Nenhuma venda encontrada para "${clientName}".</td></tr>`;
+                } else {
+                    querySnapshot.forEach(doc => {
+                        const sale = doc.data();
+                        const saleId = doc.id; // Obter o ID do documento
+
+                        const totalInstallmentsValue = sale.installments.reduce((sum, inst) => sum + inst.amount, 0);
+                        const paidInstallmentsValue = sale.installments.filter(inst => inst.paid).reduce((sum, inst) => sum + inst.amount, 0);
+                        const remainingToPay = (sale.salePrice - sale.downPayment) - paidInstallmentsValue;
+                        const totalSaleValue = sale.salePrice;
+
+                        let status = '';
+                        if (remainingToPay <= 0) {
+                            status = 'Quitado';
+                        } else if (sale.installments.some(inst => !inst.paid)) {
+                            status = 'Parcelas Pendentes';
+                        } else {
+                            status = 'Em Aberto (Verificar)'; // Caso tenha entrada mas sem parcelas ou algo assim
+                        }
+
+                        const row = resultsBody.insertRow();
+                        row.insertCell().textContent = sale.customer;
+                        row.insertCell().textContent = sale.device;
+                        row.insertCell().textContent = new Date(sale.saleDate + 'T00:00:00').toLocaleDateString('pt-BR');
+                        row.insertCell().textContent = formatCurrency(totalSaleValue);
+                        row.insertCell().textContent = formatCurrency(sale.downPayment);
+                        const remainingCell = row.insertCell();
+                        remainingCell.textContent = formatCurrency(remainingToPay < 0 ? 0 : remainingToPay); // Não mostrar negativo
+                        remainingCell.className = remainingToPay > 0 ? 'negative' : 'positive';
+                        row.insertCell().textContent = status;
+
+                        // Ações para parcelas da pesquisa
+                        const actionsCell = row.insertCell();
+                        if (remainingToPay > 0 && sale.installments.length > 0) {
+                            const payRemainingBtn = document.createElement('button');
+                            payRemainingBtn.textContent = 'Ver Detalhes';
+                            payRemainingBtn.className = 'btn btn-info text-xs py-1 px-2'; // Alterado para btn-info
+                            payRemainingBtn.onclick = () => {
+                                document.getElementById('salesTableBody').scrollIntoView({ behavior: 'smooth' });
+                                alert(`Vendas do cliente ${sale.customer} (${sale.device}) estão detalhadas na seção "Detalhes das Vendas e Recebimentos".`);
+                            };
+                            actionsCell.appendChild(payRemainingBtn);
+                        } else if (remainingToPay <= 0) {
+                            actionsCell.textContent = 'Nenhuma ação pendente';
+                        }
+                    });
+                }
+                document.getElementById('searchResults').classList.remove('hidden'); // Mostra a seção de resultados
+            } catch (error) {
+                console.error("Erro ao pesquisar vendas: ", error);
+                alert("Ocorreu um erro ao pesquisar as vendas. Verifique o console para mais detalhes.");
+            }
+        };
+
+        // --- Listeners de Eventos ---
+
+        document.getElementById('addPurchaseForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const date = document.getElementById('purchaseDate').value;
+            const device = document.getElementById('purchaseDevice').value;
+            const cost = parseFloat(document.getElementById('purchaseCost').value);
+
+            if (date && device && !isNaN(cost)) {
+                await addPurchaseToFirestore({ date, device, cost });
+                event.target.reset();
+            } else {
+                alert('Por favor, preencha todos os campos da compra corretamente.');
+            }
+        });
+
+        document.getElementById('addSaleForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const customer = document.getElementById('saleCustomer').value;
+            const device = document.getElementById('saleDevice').value;
+            const saleDate = document.getElementById('saleDate').value;
+            const salePrice = parseFloat(document.getElementById('salePrice').value);
+            const cost = parseFloat(document.getElementById('saleCost').value);
+            const downPayment = parseFloat(document.getElementById('saleDownPayment').value);
+            const installmentsCount = parseInt(document.getElementById('saleInstallmentsCount').value);
+
+            const newInstallments = [];
+            for (let i = 0; i < installmentsCount; i++) {
+                const amount = parseFloat(document.getElementById(`installmentAmount${i}`).value);
+                if (isNaN(amount) || amount <= 0) {
+                    alert(`Por favor, preencha o valor da parcela ${i + 1} corretamente.`);
+                    return;
+                }
+                newInstallments.push({ amount, paid: false, dueDate: calculateInstallmentDueDate(saleDate, i) });
+            }
+
+            if (customer && device && saleDate && !isNaN(salePrice) && !isNaN(cost) && !isNaN(downPayment) &&
+                (installmentsCount === 0 || newInstallments.length === installmentsCount)) {
+                await addSaleToFirestore({
+                    customer,
+                    device,
+                    saleDate,
+                    salePrice,
+                    cost,
+                    downPayment,
+                    installments: newInstallments,
+                    createdAt: serverTimestamp() // Modular API
+                });
+                event.target.reset();
+                document.getElementById('installmentAmountsContainer').classList.add('hidden');
+            } else {
+                alert('Por favor, preencha todos os campos da venda corretamente.');
+            }
+        });
+
+        document.getElementById('saleInstallmentsCount').addEventListener('input', (event) => {
+            const count = parseInt(event.target.value);
+            const container = document.getElementById('installmentAmountsContainer');
+            container.innerHTML = '';
+
+            if (count > 0) {
+                container.classList.remove('hidden');
+                for (let i = 0; i < count; i++) {
+                    const div = document.createElement('div');
+                    div.className = 'form-group';
+                    div.innerHTML = `
+                        <label for="installmentAmount${i}">Valor da Parcela ${i + 1} (R$):</label>
+                        <input type="number" id="installmentAmount${i}" step="0.01" min="0" placeholder="Ex: 560.00" class="rounded-md" required>
+                    `;
+                    container.appendChild(div);
+                }
+            } else {
+                container.classList.add('hidden');
+            }
+        });
+
+        // Event listener para o botão de pesquisa
+        document.getElementById('searchSalesBtn').addEventListener('click', () => {
+            const clientName = document.getElementById('searchClientName').value.trim();
+            searchSalesByClient(clientName);
+        });
+
+        // --- Inicialização e Listeners do Firestore ---
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Espera a autenticação anônima ser concluída
+            await signInAnonymously(auth).catch(error => {
+                console.error("Erro na autenticação anônima durante o carregamento:", error);
+                alert("Não foi possível conectar ao banco de dados. Verifique sua conexão ou as configurações do Firebase.");
+            });
+
+            // Verifica se as coleções estão vazias e popula com dados iniciais
+            const checkAndPopulateInitialData = async () => {
+                const purchasesSnapshot = await getDocs(collection(db, 'purchases'));
+                const salesSnapshot = await getDocs(collection(db, 'sales'));
+
+                const initialPurchases = [
+                    { date: '2025-04-02', device: 'iPhone 16 Pro 256GB', cost: 6449.00 },
+                    { date: '2025-04-20', device: 'Poco X7 Pro 5G 512GB', cost: 2150.00 },
+                    { date: '2025-05-30', device: 'Apple Watch SE 44mm', cost: 1700.00 },
+                ];
+
+                const initialSalesData = [
+                    {
+                        customer: 'Junior Pereira Agehab',
+                        device: 'iPhone 16 Pro 256GB',
+                        saleDate: '2025-04-02',
+                        salePrice: 7800.00,
+                        cost: 6449.00,
+                        downPayment: 2500.00,
+                        installments: [
+                            { amount: 1100.00, paid: false },
+                            { amount: 1100.00, paid: false },
+                            { amount: 1100.00, paid: false },
+                            { amount: 1100.00, paid: false },
+                            { amount: 1100.00, paid: false },
+                        ],
+                    },
+                    {
+                        customer: 'Denilson',
+                        device: 'Poco X7 Pro 5G 512GB',
+                        saleDate: '2025-04-20',
+                        salePrice: 2600.00,
+                        cost: 2150.00,
+                        downPayment: 1300.00,
+                        installments: [
+                            { amount: 325.00, paid: false },
+                            { amount: 325.00, paid: false },
+                            { amount: 325.00, paid: false },
+                            { amount: 325.00, paid: false },
+                        ],
+                    },
+                    {
+                        customer: 'Junior Pereira Agehab',
+                        device: 'Apple Watch SE 44mm',
+                        saleDate: '2025-05-30',
+                        salePrice: 2150.00,
+                        cost: 1700.00,
+                        downPayment: 450.00,
+                        installments: [
+                            { amount: 560.00, paid: false },
+                            { amount: 560.00, paid: false },
+                            { amount: 580.00, paid: false },
+                        ],
+                    },
+                ];
+
+                if (purchasesSnapshot.empty) {
+                    console.log("Coleção 'purchases' vazia. Populando com dados iniciais...");
+                    for (const purchase of initialPurchases) {
+                        await addPurchaseToFirestore(purchase);
+                    }
+                }
+
+                if (salesSnapshot.empty) {
+                    console.log("Coleção 'sales' vazia. Populando com dados iniciais...");
+                    for (const sale of initialSalesData) {
+                        sale.installments.forEach((inst, index) => {
+                            inst.dueDate = calculateInstallmentDueDate(sale.saleDate, index);
+                        });
+                        await addSaleToFirestore(sale);
+                    }
+                }
+
+                if (purchasesSnapshot.empty || salesSnapshot.empty) {
+                    console.log("Dados iniciais populados (se necessário).");
+                }
+            };
+
+            // Chama a função para verificar e popular dados iniciais
+            await checkAndPopulateInitialData();
+
+            // Listener em tempo real para compras
+            onSnapshot(collection(db, 'purchases'), (snapshot) => {
+                purchases = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderPurchases();
+                renderSummary();
+            }, (error) => {
+                console.error("Erro ao carregar compras: ", error);
+                alert("Erro ao carregar dados de compras do banco de dados.");
+            });
+
+            // Listener em tempo real para vendas
+            onSnapshot(collection(db, 'sales'), (snapshot) => {
+                sales = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderSales();
+                renderMonthlyReceivables();
+                renderSummary();
+                const clientName = document.getElementById('searchClientName').value.trim();
+                if (clientName) {
+                    searchSalesByClient(clientName);
+                }
+            }, (error) => {
+                console.error("Erro ao carregar vendas: ", error);
+                alert("Erro ao carregar dados de vendas do banco de dados.");
+            });
+        });
+    </script>
+</head>
+<body class="bg-gray-100 p-4 sm:p-6 md:p-8">
+    <div class="container bg-white rounded-xl shadow-lg p-6 sm:p-8 md:p-10">
+        <h1 class="text-3xl sm:text-4xl font-bold text-center mb-6 text-gray-800">📊 Planilha de Controle Financeiro</h1>
+        <p class="text-center text-gray-600 mb-8">Gerencie suas compras, vendas e recebimentos de aparelhos eletrônicos.</p>
+
+        <section class="mb-10">
+            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Resumo Financeiro</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="summary-card">
+                    <p class="text-sm text-gray-500 mb-1">Capital Inicial</p>
+                    <p id="initialCapital" class="text-xl font-bold text-blue-600">R$15.000,00</p>
+                </div>
+                <div class="summary-card">
+                    <p class="text-sm text-gray-500 mb-1">Gasto Total em Compras</p>
+                    <p id="totalSpent" class="text-xl font-bold text-gray-800">R$0,00</p>
+                </div>
+                <div class="summary-card">
+                    <p class="text-sm text-gray-500 mb-1">Saldo Atual</p>
+                    <p id="currentBalance" class="text-xl font-bold text-gray-800">R$0,00</p>
+                    <div id="balanceWarning" class="warning mt-2 hidden">
+                        <p>⚠️ Atenção: Você excedeu o capital inicial de R$15.000!</p>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <p class="text-sm text-gray-500 mb-1">Lucro Líquido Previsto</p>
+                    <p id="netProfit" class="text-xl font-bold text-gray-800">R$0,00</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="mb-10 p-6 bg-blue-50 rounded-xl shadow-md">
+            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Adicionar Nova Compra</h2>
+            <form id="addPurchaseForm" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="form-group">
+                    <label for="purchaseDate">Data da Compra:</label>
+                    <input type="date" id="purchaseDate" class="rounded-md" required>
+                </div>
+                <div class="form-group">
+                    <label for="purchaseDevice">Aparelho:</label>
+                    <input type="text" id="purchaseDevice" placeholder="Ex: iPhone 16 Pro" class="rounded-md" required>
+                </div>
+                <div class="form-group">
+                    <label for="purchaseCost">Custo (R$):</label>
+                    <input type="number" id="purchaseCost" step="0.01" min="0" placeholder="Ex: 6449.00" class="rounded-md" required>
+                </div>
+                <div class="md:col-span-3 text-right">
+                    <button type="submit" class="btn btn-primary">Adicionar Compra</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="mb-10">
+            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Detalhes das Compras (Estoque e Custo)</h2>
+            <div class="table-responsive">
+                <table class="min-w-full">
+                    <thead>
+                        <tr>
+                            <th class="rounded-tl-lg">Data da Compra</th>
+                            <th>Aparelho</th>
+                            <th class="rounded-tr-lg">Custo (R$)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="purchasesTableBody">
+                        </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="mb-10 p-6 bg-green-50 rounded-xl shadow-md">
+            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Adicionar Nova Venda</h2>
+            <form id="addSaleForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div class="form-group">
+                    <label for="saleCustomer">Cliente:</label>
+                    <input type="text" id="saleCustomer" placeholder="Ex: Junior Pereira Agehab" class="rounded-md" required>
+                </div>
+                <div class="form-group">
+                    <label for="saleDevice">Aparelho:</label>
+                    <input type="text" id="saleDevice" placeholder="Ex: Apple Watch SE" class="rounded-md" required>
+                </div>
+                <div class="form-group">
+                    <label for="saleDate">Data da Venda:</label>
+                    <input type="date" id="saleDate" class="rounded-md" required>
+                </div>
+                <div class="form-group">
+                    <label for="salePrice">Valor de Venda (R$):</label>
+                    <input type="number" id="salePrice" step="0.01" min="0" placeholder="Ex: 2150.00" class="rounded-md" required>
+                </div>
+                <div class="form-group">
+                    <label for="saleCost">Custo (R$):</label>
+                    <input type="number" id="saleCost" step="0.01" min="0" placeholder="Ex: 1700.00" class="rounded-md" required>
+                </div>
+                <div class="form-group">
+                    <label for="saleDownPayment">Entrada (R$):</label>
+                    <input type="number" id="saleDownPayment" step="0.01" min="0" placeholder="Ex: 450.00" class="rounded-md" required>
+                </div>
+                <div class="form-group lg:col-span-3">
+                    <label for="saleInstallmentsCount">Número de Parcelas:</label>
+                    <input type="number" id="saleInstallmentsCount" min="0" value="0" class="rounded-md">
+                </div>
+                <div id="installmentAmountsContainer" class="form-group lg:col-span-3 grid grid-cols-2 md:grid-cols-4 gap-4 hidden">
+                    </div>
+                <div class="md:col-span-3 text-right">
+                    <button type="submit" class="btn btn-primary">Adicionar Venda</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="mb-10">
+            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Detalhes das Vendas e Recebimentos</h2>
+            <div class="table-responsive">
+                <table class="min-w-full">
+                    <thead>
+                        <tr>
+                            <th class="rounded-tl-lg">Cliente</th>
+                            <th>Aparelho</th>
+                            <th>Data da Venda</th>
+                            <th>Valor Total (R$)</th>
+                            <th>Entrada (R$)</th>
+                            <th>Status Parcelas</th>
+                            <th>A Receber (R$)</th>
+                            <th class="rounded-tr-lg">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="salesTableBody">
+                        </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="mb-10">
+            <h2 class="2xl font-semibold mb-5 text-gray-700">Recebimentos Mensais Previstos</h2>
+            <div class="table-responsive">
+                <table class="min-w-full">
+                    <thead>
+                        <tr>
+                            <th class="rounded-tl-lg">Mês / Ano</th>
+                            <th class="rounded-tr-lg">Total Mensal (R$)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="monthlyReceivablesTableBody">
+                        </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="mb-10 p-6 bg-purple-50 rounded-xl shadow-md">
+            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Pesquisar Vendas por Cliente</h2>
+            <div class="form-group flex gap-4 items-end">
+                <div class="flex-grow">
+                    <label for="searchClientName">Nome do Cliente:</label>
+                    <input type="text" id="searchClientName" placeholder="Digite o nome do cliente" class="rounded-md">
+                </div>
+                <button id="searchSalesBtn" class="btn btn-info whitespace-nowrap">Pesquisar</button>
+            </div>
+            <div id="searchResults" class="mt-6 hidden search-results-table">
+                <h3 class="text-xl font-semibold mb-3 text-gray-700">Resultados da Pesquisa</h3>
+                <div class="table-responsive">
+                    <table class="min-w-full">
+                        <thead>
+                            <tr>
+                                <th>Cliente</th>
+                                <th>Aparelho</th>
+                                <th>Data Venda</th>
+                                <th>Valor Total</th>
+                                <th>Entrada</th>
+                                <th>Valor a Pagar</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="searchResultsTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+</body>
+</html>
