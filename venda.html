@@ -404,17 +404,20 @@
 
         const renderSummary = () => {
             const totalSpent = purchases.reduce((sum, item) => sum + item.cost, 0);
-            const totalReceivedFromDownPayments = sales.reduce((sum, sale) => sum + sale.downPayment, 0);
-            const totalReceivedFromPaidInstallments = sales.reduce((sum, sale) =>
-                sum + sale.installments.filter(inst => inst.paid).reduce((acc, inst) => acc + inst.amount, 0), 0);
-            const totalReceived = totalReceivedFromDownPayments + totalReceivedFromPaidInstallments;
+            // const totalReceivedFromDownPayments = sales.reduce((sum, sale) => sum + sale.downPayment, 0);
+            // const totalReceivedFromPaidInstallments = sales.reduce((sum, sale) =>
+            //     sum + sale.installments.filter(inst => inst.paid).reduce((acc, inst) => acc + inst.amount, 0), 0);
+            // const totalReceived = totalReceivedFromDownPayments + totalReceivedFromPaidInstallments;
 
-            const totalExpectedReceivables = sales.reduce((sum, sale) =>
-                sum + sale.downPayment + sale.installments.reduce((acc, inst) => acc + inst.amount, 0), 0);
-            const totalCostOfSoldItems = sales.reduce((sum, sale) => sum + sale.cost, 0);
+            // const totalExpectedReceivables = sales.reduce((sum, sale) =>
+            //     sum + sale.downPayment + sale.installments.reduce((acc, inst) => acc + inst.amount, 0), 0);
+            // const totalCostOfSoldItems = sales.reduce((sum, sale) => sum + sale.cost, 0);
 
-            const currentBalance = INITIAL_CAPITAL - totalSpent + totalReceived;
-            const netProfit = totalExpectedReceivables - totalCostOfSoldItems;
+            // CÁLCULO ATUALIZADO DO SALDO ATUAL: CAPITAL INICIAL - GASTO TOTAL EM COMPRAS
+            const currentBalance = INITIAL_CAPITAL - totalSpent; // ANTIGO: INITIAL_CAPITAL - totalSpent + totalReceived;
+            
+            // CÁLCULO ATUALIZADO DO LUCRO LÍQUIDO PREVISTO: (VALOR DE VENDA - VALOR DE COMPRA) DE CADA VENDA
+            const netProfit = sales.reduce((sum, sale) => sum + (sale.salePrice - sale.cost), 0); // ANTIGO: totalExpectedReceivables - totalCostOfSoldItems;
 
             document.getElementById('totalSpent').textContent = formatCurrency(totalSpent);
             document.getElementById('currentBalance').textContent = formatCurrency(currentBalance);
