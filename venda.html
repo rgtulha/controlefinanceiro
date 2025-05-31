@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planilha de Controle Financeiro Interativa</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+        h1, h2 {
+            color: #1a202c;
+            font-weight: 600;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        th {
+            background-color: #4a5568;
+            color: white;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.875rem;
+        }
+        td {
+            background-color: #ffffff;
+            font-size: 0.9rem;
+        }
+        .summary-card {
+            background-color: #ffffff;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+        .positive {
+            color: #10b981; /* Green */
+            font-weight: 600;
+        }
+        .negative {
+            color: #ef4444; /* Red */
+            font-weight: 600;
+        }
+        .warning {
+            background-color: #fffbeb;
+            color: #d97706;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            font-weight: 500;
+            border: 1px solid #fcd34d;
+        }
+        .table-responsive {
+            overflow-x: auto;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #4a5568;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #cbd5e0;
+            border-radius: 0.375rem;
+            font-size: 1rem;
+            color: #2d3748;
+        }
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .btn-primary {
+            background-color: #4c51bf;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #434190;
+        }
+        .btn-success {
+            background-color: #10b981;
+            color: white;
+        }
+        .btn-success:hover {
+            background-color: #059669;
+        }
+        .btn-secondary {
+            background-color: #e2e8f0;
+            color: #2d3748;
+        }
+        .btn-secondary:hover {
+            background-color: #cbd5e0;
+        }
+        .installment-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px dashed #e2e8f0;
+        }
+        .installment-item:last-child {
+            border-bottom: none;
+        }
+        .paid-status {
+            color: #10b981;
+            font-weight: 500;
+        }
+        .unpaid-status {
+            color: #ef4444;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4 sm:p-6 md:p-8">
+    <div class="container bg-white rounded-xl shadow-lg p-6 sm:p-8 md:p-10">
+        <h1 class="text-3xl sm:text-4xl font-bold text-center mb-6 text-gray-800">📊 Planilha de Controle Financeiro</h1>
+        <p class="text-center text-gray-600 mb-8">Gerencie suas compras, vendas e recebimentos de aparelhos eletrônicos.</p>
+
+        <section class="mb-10">
+            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Resumo Financeiro</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="summary-card">
+                    <p class="text-sm text-gray-500 mb-1">Capital Inicial</p>
+                    <p id="initialCapital" class="text-xl font-bold text-blue-600">R$15.000,00</p>
+                </div>
+                <div class="summary-card">
+                    <p class="text-sm text-gray-500 mb-1">Gasto Total em Compras</p>
+                    <p id="totalSpent" class="text-xl font-bold text-gray-800">R$0,00</p>
+                </div>
+                <div class="summary-card">
+                    <p class="text-sm text-gray-500 mb-1">Saldo Atual</p>
+                    <p id="currentBalance" class="text-xl font-bold text-gray-800">R$0,00</p>
+                    <div id="balanceWarning" class="warning mt-2 hidden">
+                        <p>⚠️ Atenção: Você excedeu o capital inicial de R$15.000!</p>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <p class="text-sm text-gray-500 mb-1">Lucro Líquido Previsto</p>
+                    <p id="netProfit" class="text-xl font-bold text-gray-800">R$0,00</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="mb-10 p-6 bg-blue-50 rounded-xl shadow-md">
+            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Adicionar Nova Compra</h2>
+            <form id="addPurchaseForm" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="form-group">
+                    <label for="purchaseDate">Data da Compra:</label>
+                    <input type="date" id="purchaseDate" class="rounded-md" required>
+                </div>
+                <div class="form-group">
+                    <label for="purchaseDevice">Aparelho:</label>
+                    <input type="text" id="purchaseDevice" placeholder="Ex: iPhone 16 Pro" class="rounded-md" required>
+                </div>
+                <div class="form-group">
+                    <label for="purchaseCost">Custo (R$):</label>
+                    <input type="number" id="purchaseCost" step="0.01" min="0" placeholder="Ex: 6449.00" class="rounded-md" required>
+                </div>
+                <div class="md:col-span-3 text-right">
+                    <button type="submit" class="btn btn-primary">Adicionar Compra</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="mb-10">
+            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Detalhes das Compras (Estoque e Custo)</h2>
+            <div class="table-responsive">
+                <table class="min-w-full">
+                    <thead>
+                        <tr>
+                            <th class="rounded-tl-lg">Data da Compra</th>
+                            <th>Aparelho</th>
+                            <th class="rounded-tr-lg">Custo (R$)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="purchasesTableBody">
+                        </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="mb-10 p-6 bg-green-50 rounded-xl shadow-md">
+            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Adicionar Nova Venda</h2>
+            <form id="addSaleForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div class="form-group">
+                    <label for="saleCustomer">Cliente:</label>
+                    <input type="text" id="saleCustomer" placeholder="Ex: Junior Pereira Agehab" class="rounded-md" required>
+                </div>
+                <div class="form-group">
+                    <label for="saleDevice">Aparelho:</label>
+                    <input type="text" id="saleDevice" placeholder="Ex: Apple Watch SE" class="rounded-md" required>
+                </div>
+                <div class="form-group">
+                    <label for="saleDate">Data da Venda:</label>
+                    <input type="date" id="saleDate" class="rounded-md" required>
+                </div>
+                <div class="form-group">
+                    <label for="salePrice">Valor de Venda (R$):</label>
+                    <input type="number" id="salePrice" step="0.01" min="0" placeholder="Ex: 2150.00" class="rounded-md" required>
+                </div>
+                <div class="form-group">
+                    <label for="saleCost">Custo (R$):</label>
+                    <input type="number" id="saleCost" step="0.01" min="0" placeholder="Ex: 1700.00" class="rounded-md" required>
+                </div>
+                <div class="form-group">
+                    <label for="saleDownPayment">Entrada (R$):</label>
+                    <input type="number" id="saleDownPayment" step="0.01" min="0" placeholder="Ex: 450.00" class="rounded-md" required>
+                </div>
+                <div class="form-group lg:col-span-3">
+                    <label for="saleInstallmentsCount">Número de Parcelas:</label>
+                    <input type="number" id="saleInstallmentsCount" min="0" value="0" class="rounded-md">
+                </div>
+                <div id="installmentAmountsContainer" class="form-group lg:col-span-3 grid grid-cols-2 md:grid-cols-4 gap-4 hidden">
+                    </div>
+                <div class="md:col-span-3 text-right">
+                    <button type="submit" class="btn btn-primary">Adicionar Venda</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="mb-10">
+            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Detalhes das Vendas e Recebimentos</h2>
+            <div class="table-responsive">
+                <table class="min-w-full">
+                    <thead>
+                        <tr>
+                            <th class="rounded-tl-lg">Cliente</th>
+                            <th>Aparelho</th>
+                            <th>Data da Venda</th>
+                            <th>Valor de Venda (R$)</th>
+                            <th>Custo (R$)</th>
+                            <th>Lucro Bruto (R$)</th>
+                            <th>Lucro (%)</th> <th>Entrada (R$)</th>
+                            <th class="rounded-tr-lg">Parcelas</th>
+                        </tr>
+                    </thead>
+                    <tbody id="salesTableBody">
+                        </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="mb-10">
+            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Recebimentos Mensais Previstos</h2>
+            <div class="table-responsive">
+                <table class="min-w-full">
+                    <thead>
+                        <tr>
+                            <th class="rounded-tl-lg">Mês / Ano</th>
+                            <th class="rounded-tr-lg">Total Mensal (R$)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="monthlyReceivablesTableBody">
+                        </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // Capital inicial definido
+        const INITIAL_CAPITAL = 15000; // Aumentado para R$15.000
+
+        // Dados de compras (inicialmente preenchidos)
+        let purchases = [
+            { date: '2025-04-02', device: 'iPhone 16 Pro 256GB', cost: 6449.00 },
+            { date: '2025-04-20', device: 'Poco X7 Pro 5G 512GB', cost: 2150.00 },
+            { date: '2025-05-30', device: 'Apple Watch SE 44mm', cost: 1700.00 },
+        ];
+
+        // Dados de vendas (inicialmente preenchidos)
+        let sales = [
+            {
+                customer: 'Junior Pereira Agehab',
+                device: 'iPhone 16 Pro 256GB',
+                saleDate: '2025-04-02',
+                salePrice: 7800.00,
+                cost: 6449.00,
+                downPayment: 2500.00,
+                installments: [], // Preenchido dinamicamente
+            },
+            {
+                customer: 'Denilson',
+                device: 'Poco X7 Pro 5G 512GB',
+                saleDate: '2025-04-20',
+                salePrice: 2600.00,
+                cost: 2150.00,
+                downPayment: 1300.00,
+                installments: [], // Preenchido dinamicamente
+            },
+            {
+                customer: 'Junior Pereira Agehab',
+                device: 'Apple Watch SE 44mm',
+                saleDate: '2025-05-30',
+                salePrice: 2150.00,
+                cost: 1700.00,
+                downPayment: 450.00,
+                installments: [], // Preenchido dinamicamente
+            },
+        ];
+
+        // Preencher as parcelas para as vendas iniciais
+        const setupInitialInstallments = () => {
+            sales[0].installments = [
+                { amount: 1100.00, paid: false },
+                { amount: 1100.00, paid: false },
+                { amount: 1100.00, paid: false },
+                { amount: 1100.00, paid: false },
+                { amount: 1100.00, paid: false },
+            ];
+            sales[1].installments = [
+                { amount: 325.00, paid: false },
+                { amount: 325.00, paid: false },
+                { amount: 325.00, paid: false },
+                { amount: 325.00, paid: false },
+            ];
+            sales[2].installments = [
+                { amount: 560.00, paid: false },
+                { amount: 560.00, paid: false },
+                { amount: 580.00, paid: false },
+            ];
+
+            // Calcular as datas de vencimento para as parcelas iniciais
+            sales.forEach(sale => {
+                sale.installments.forEach((inst, index) => {
+                    inst.dueDate = calculateInstallmentDueDate(sale.saleDate, index);
+                });
+            });
+        };
+
+        // Função para formatar valores monetários
+        const formatCurrency = (value) => {
+            return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        };
+
+        // Função para calcular a data de vencimento das parcelas
+        const calculateInstallmentDueDate = (saleDateStr, installmentIndex) => {
+            const saleDate = new Date(saleDateStr + 'T00:00:00'); // Garante que a data seja interpretada corretamente
+            let dueDate = new Date(saleDate.getFullYear(), saleDate.getMonth() + 1 + installmentIndex, 10);
+
+            // Ajuste para o dia 10 do mês, se o dia da venda for após o dia 10, a primeira parcela é no próximo mês.
+            // A lógica já está ajustada para ser sempre no mês seguinte + index da parcela.
+            return dueDate.toISOString().split('T')[0]; // Retorna no formato YYYY-MM-DD
+        };
+
+        // Função para renderizar o resumo financeiro
+        const renderSummary = () => {
+            const totalSpent = purchases.reduce((sum, item) => sum + item.cost, 0);
+            const totalReceivedFromDownPayments = sales.reduce((sum, sale) => sum + sale.downPayment, 0);
+            const totalReceivedFromPaidInstallments = sales.reduce((sum, sale) =>
+                sum + sale.installments.filter(inst => inst.paid).reduce((acc, inst) => acc + inst.amount, 0), 0);
+            const totalReceived = totalReceivedFromDownPayments + totalReceivedFromPaidInstallments;
+
+            const totalExpectedReceivables = sales.reduce((sum, sale) =>
+                sum + sale.downPayment + sale.installments.reduce((acc, inst) => acc + inst.amount, 0), 0);
+            const totalCostOfSoldItems = sales.reduce((sum, sale) => sum + sale.cost, 0);
+
+            const currentBalance = INITIAL_CAPITAL - totalSpent + totalReceived;
+            const netProfit = totalExpectedReceivables - totalCostOfSoldItems;
+
+            document.getElementById('totalSpent').textContent = formatCurrency(totalSpent);
+            document.getElementById('currentBalance').textContent = formatCurrency(currentBalance);
+            document.getElementById('currentBalance').className = currentBalance >= 0 ? 'text-xl font-bold positive' : 'text-xl font-bold negative';
+
+            const balanceWarning = document.getElementById('balanceWarning');
+            if (totalSpent > INITIAL_CAPITAL) {
+                balanceWarning.classList.remove('hidden');
+            } else {
+                balanceWarning.classList.add('hidden');
+            }
+
+            document.getElementById('netProfit').textContent = formatCurrency(netProfit);
+            document.getElementById('netProfit').className = netProfit >= 0 ? 'text-xl font-bold positive' : 'text-xl font-bold negative';
+        };
+
+        // Função para renderizar a tabela de compras
+        const renderPurchases = () => {
+            const tbody = document.getElementById('purchasesTableBody');
+            tbody.innerHTML = ''; // Limpa a tabela antes de renderizar
+
+            purchases.forEach(purchase => {
+                const row = tbody.insertRow();
+                row.insertCell().textContent = new Date(purchase.date + 'T00:00:00').toLocaleDateString('pt-BR');
+                row.insertCell().textContent = purchase.device;
+                row.insertCell().textContent = formatCurrency(purchase.cost);
+            });
+        };
+
+        // Função para marcar uma parcela como paga
+        const markInstallmentAsPaid = (saleIndex, installmentIndex) => {
+            sales[saleIndex].installments[installmentIndex].paid = true;
+            renderAll(); // Re-renderiza tudo para atualizar os valores
+        };
+
+        // Função para renderizar a tabela de vendas
+        const renderSales = () => {
+            const tbody = document.getElementById('salesTableBody');
+            tbody.innerHTML = ''; // Limpa a tabela antes de renderizar
+
+            sales.forEach((sale, saleIndex) => {
+                const row = tbody.insertRow();
+                const profit = sale.salePrice - sale.cost;
+                const profitPercentage = sale.cost > 0 ? (profit / sale.cost) * 100 : 0; // Calculate profit percentage
+
+                row.insertCell().textContent = sale.customer;
+                row.insertCell().textContent = sale.device;
+                row.insertCell().textContent = new Date(sale.saleDate + 'T00:00:00').toLocaleDateString('pt-BR');
+                row.insertCell().textContent = formatCurrency(sale.salePrice);
+                row.insertCell().textContent = formatCurrency(sale.cost);
+                const profitCell = row.insertCell();
+                profitCell.textContent = formatCurrency(profit);
+                profitCell.className = profit >= 0 ? 'positive' : 'negative';
+
+                // Display profit percentage
+                const profitPercentageCell = row.insertCell();
+                profitPercentageCell.textContent = `${profitPercentage.toFixed(2)}%`;
+                profitPercentageCell.className = profitPercentage >= 0 ? 'positive' : 'negative';
+
+                row.insertCell().textContent = formatCurrency(sale.downPayment);
+
+                const installmentsCell = row.insertCell();
+                if (sale.installments.length === 0) {
+                    installmentsCell.textContent = 'À Vista';
+                } else {
+                    sale.installments.forEach((installment, instIndex) => {
+                        const installmentDiv = document.createElement('div');
+                        installmentDiv.className = 'installment-item';
+                        const dueDateFormatted = new Date(installment.dueDate + 'T00:00:00').toLocaleDateString('pt-BR');
+                        installmentDiv.innerHTML = `
+                            <span>Parcela ${instIndex + 1}: ${formatCurrency(installment.amount)} (Venc: ${dueDateFormatted})</span>
+                            <span class="${installment.paid ? 'paid-status' : 'unpaid-status'}">
+                                ${installment.paid ? 'Paga' : 'A Receber'}
+                            </span>
+                        `;
+                        if (!installment.paid) {
+                            const payButton = document.createElement('button');
+                            payButton.textContent = 'Marcar como Paga';
+                            payButton.className = 'btn btn-success text-xs py-1 px-2 ml-2';
+                            payButton.onclick = () => markInstallmentAsPaid(saleIndex, instIndex);
+                            installmentDiv.appendChild(payButton);
+                        }
+                        installmentsCell.appendChild(installmentDiv);
+                    });
+                }
+            });
+        };
+
+        // Função para renderizar a tabela de recebimentos mensais
+        const renderMonthlyReceivables = () => {
+            const tbody = document.getElementById('monthlyReceivablesTableBody');
+            tbody.innerHTML = ''; // Limpa a tabela antes de renderizar
+
+            const monthlyData = {};
+            const customers = new Set(); // Para coletar todos os clientes únicos
+
+            sales.forEach(sale => {
+                customers.add(sale.customer); // Adiciona o cliente ao conjunto
+                sale.installments.forEach((installment, index) => {
+                    // Apenas considera parcelas não pagas para os recebimentos futuros
+                    if (!installment.paid) {
+                        const dueDate = new Date(installment.dueDate + 'T00:00:00');
+                        const monthYearKey = `${(dueDate.getMonth() + 1).toString().padStart(2, '0')}/${dueDate.getFullYear()}`; // Formato MM/YYYY
+
+                        if (!monthlyData[monthYearKey]) {
+                            monthlyData[monthYearKey] = {};
+                        }
+                        if (!monthlyData[monthYearKey][sale.customer]) {
+                            monthlyData[monthYearKey][sale.customer] = 0;
+                        }
+                        monthlyData[monthYearKey][sale.customer] += installment.amount;
+                    }
+                });
+            });
+
+            // Ordena os meses cronologicamente
+            const sortedMonths = Object.keys(monthlyData).sort((a, b) => {
+                const [monthA, yearA] = a.split('/').map(Number);
+                const [monthB, yearB] = b.split('/').map(Number);
+                if (yearA !== yearB) return yearA - yearB;
+                return monthA - monthB;
+            });
+
+            // Atualiza o cabeçalho da tabela de recebimentos mensais com os clientes
+            const monthlyHeaderRow = document.querySelector('#monthlyReceivablesTableBody').previousElementSibling.querySelector('thead tr');
+            monthlyHeaderRow.innerHTML = `<th class="rounded-tl-lg">Mês / Ano</th>`;
+            const sortedCustomers = Array.from(customers).sort(); // Ordena os clientes
+            sortedCustomers.forEach(customer => {
+                monthlyHeaderRow.innerHTML += `<th>${customer}</th>`;
+            });
+            monthlyHeaderRow.innerHTML += `<th class="rounded-tr-lg">Total Mensal (R$)</th>`;
+
+
+            sortedMonths.forEach(monthYearKey => {
+                const row = tbody.insertRow();
+                row.insertCell().textContent = monthYearKey;
+                let totalMonthly = 0;
+
+                sortedCustomers.forEach(customer => {
+                    const amount = monthlyData[monthYearKey][customer] || 0;
+                    row.insertCell().textContent = formatCurrency(amount);
+                    totalMonthly += amount;
+                });
+
+                const totalCell = row.insertCell();
+                totalCell.textContent = formatCurrency(totalMonthly);
+                totalCell.classList.add('font-bold');
+            });
+        };
+
+        // Função para renderizar todas as seções
+        const renderAll = () => {
+            renderSummary();
+            renderPurchases();
+            renderSales();
+            renderMonthlyReceivables();
+        };
+
+        // Lidar com o formulário de Adicionar Compra
+        document.getElementById('addPurchaseForm').addEventListener('submit', (event) => {
+            event.preventDefault();
+            const date = document.getElementById('purchaseDate').value;
+            const device = document.getElementById('purchaseDevice').value;
+            const cost = parseFloat(document.getElementById('purchaseCost').value);
+
+            if (date && device && !isNaN(cost)) {
+                purchases.push({ date, device, cost });
+                renderAll();
+                event.target.reset(); // Limpa o formulário
+            } else {
+                alert('Por favor, preencha todos os campos da compra corretamente.');
+            }
+        });
+
+        // Lidar com o formulário de Adicionar Venda
+        document.getElementById('addSaleForm').addEventListener('submit', (event) => {
+            event.preventDefault();
+            const customer = document.getElementById('saleCustomer').value;
+            const device = document.getElementById('saleDevice').value;
+            const saleDate = document.getElementById('saleDate').value;
+            const salePrice = parseFloat(document.getElementById('salePrice').value);
+            const cost = parseFloat(document.getElementById('saleCost').value);
+            const downPayment = parseFloat(document.getElementById('saleDownPayment').value);
+            const installmentsCount = parseInt(document.getElementById('saleInstallmentsCount').value);
+
+            const newInstallments = [];
+            let totalInstallmentAmount = 0;
+            for (let i = 0; i < installmentsCount; i++) {
+                const amount = parseFloat(document.getElementById(`installmentAmount${i}`).value);
+                if (isNaN(amount) || amount <= 0) {
+                    alert(`Por favor, preencha o valor da parcela ${i + 1} corretamente.`);
+                    return;
+                }
+                newInstallments.push({ amount, paid: false, dueDate: calculateInstallmentDueDate(saleDate, i) });
+                totalInstallmentAmount += amount;
+            }
+
+            if (customer && device && saleDate && !isNaN(salePrice) && !isNaN(cost) && !isNaN(downPayment) &&
+                (installmentsCount === 0 || newInstallments.length === installmentsCount)) {
+                sales.push({
+                    customer,
+                    device,
+                    saleDate,
+                    salePrice,
+                    cost,
+                    downPayment,
+                    installments: newInstallments,
+                });
+                renderAll();
+                event.target.reset(); // Limpa o formulário
+                document.getElementById('installmentAmountsContainer').classList.add('hidden'); // Esconde os campos de parcela
+            } else {
+                alert('Por favor, preencha todos os campos da venda corretamente.');
+            }
+        });
+
+        // Gerar campos de parcelas dinamicamente
+        document.getElementById('saleInstallmentsCount').addEventListener('input', (event) => {
+            const count = parseInt(event.target.value);
+            const container = document.getElementById('installmentAmountsContainer');
+            container.innerHTML = ''; // Limpa os campos existentes
+
+            if (count > 0) {
+                container.classList.remove('hidden');
+                for (let i = 0; i < count; i++) {
+                    const div = document.createElement('div');
+                    div.className = 'form-group';
+                    div.innerHTML = `
+                        <label for="installmentAmount${i}">Valor da Parcela ${i + 1} (R$):</label>
+                        <input type="number" id="installmentAmount${i}" step="0.01" min="0" placeholder="Ex: 560.00" class="rounded-md" required>
+                    `;
+                    container.appendChild(div);
+                }
+            } else {
+                container.classList.add('hidden');
+            }
+        });
+
+        // Inicializa a planilha ao carregar a página
+        document.addEventListener('DOMContentLoaded', () => {
+            setupInitialInstallments(); // Configura as parcelas iniciais com as datas de vencimento
+            renderAll();
+        });
+    </script>
+</body>
+</html>
