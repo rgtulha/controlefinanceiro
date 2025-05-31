@@ -6,6 +6,331 @@
     <title>Planilha de Controle Financeiro Interativa com Firebase (Modular SDK)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+        h1, h2 {
+            color: #1a202c;
+            font-weight: 600;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        th {
+            background-color: #4a5568;
+            color: white;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.875rem;
+        }
+        td {
+            background-color: #ffffff;
+            font-size: 0.9rem;
+        }
+        .summary-card {
+            background-color: #ffffff;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+        .positive {
+            color: #10b981; /* Green */
+            font-weight: 600;
+        }
+        .negative {
+            color: #ef4444; /* Red */
+            font-weight: 600;
+        }
+        .warning {
+            background-color: #fffbeb;
+            color: #d97706;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            font-weight: 500;
+            border: 1px solid #fcd34d;
+        }
+        .table-responsive {
+            overflow-x: auto;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #4a5568;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #cbd5e0;
+            border-radius: 0.375rem;
+            font-size: 1rem;
+            color: #2d3748;
+        }
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .btn-primary {
+            background-color: #4c51bf;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #434190;
+        }
+        .btn-success {
+            background-color: #10b981;
+            color: white;
+        }
+        .btn-success:hover {
+            background-color: #059669;
+        }
+        .btn-secondary {
+            background-color: #e2e8f0;
+            color: #2d3748;
+        }
+        .btn-secondary:hover {
+            background-color: #cbd5e0;
+        }
+        .btn-info {
+            background-color: #3b82f6; /* Blue */
+            color: white;
+        }
+        .btn-info:hover {
+            background-color: #2563eb;
+        }
+        .installment-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px dashed #e2e8f0;
+        }
+        .installment-item:last-child {
+            border-bottom: none;
+        }
+        .paid-status {
+            color: #10b981;
+            font-weight: 500;
+        }
+        .unpaid-status {
+            color: #ef4444;
+            font-weight: 500;
+        }
+        .search-results-table {
+            background-color: #ffffff;
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            padding: 1.5rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4 sm:p-6 md:p-8">
+    <div class="container bg-white rounded-xl shadow-lg p-6 sm:p-8 md:p-10">
+        <h1 class="text-3xl sm:text-4xl font-bold text-center mb-6 text-gray-800">📊 Planilha de Controle Financeiro</h1>
+        <p class="text-center text-gray-600 mb-8">Gerencie suas compras, vendas e recebimentos de aparelhos eletrônicos.</p>
+
+        <section class="mb-10">
+            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Resumo Financeiro</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="summary-card">
+                    <p class="text-sm text-gray-500 mb-1">Capital Inicial</p>
+                    <p id="initialCapital" class="text-xl font-bold text-blue-600">R$15.000,00</p>
+                </div>
+                <div class="summary-card">
+                    <p class="text-sm text-gray-500 mb-1">Gasto Total em Compras</p>
+                    <p id="totalSpent" class="text-xl font-bold text-gray-800">R$0,00</p>
+                </div>
+                <div class="summary-card">
+                    <p class="text-sm text-gray-500 mb-1">Saldo Atual</p>
+                    <p id="currentBalance" class="text-xl font-bold text-gray-800">R$0,00</p>
+                    <div id="balanceWarning" class="warning mt-2 hidden">
+                        <p>⚠️ Atenção: Você excedeu o capital inicial de R$15.000!</p>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <p class="text-sm text-gray-500 mb-1">Lucro Líquido Previsto</p>
+                    <p id="netProfit" class="text-xl font-bold text-gray-800">R$0,00</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="mb-10 p-6 bg-blue-50 rounded-xl shadow-md">
+            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Adicionar Nova Compra</h2>
+            <form id="addPurchaseForm" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="form-group">
+                    <label for="purchaseDate">Data da Compra:</label>
+                    <input type="date" id="purchaseDate" class="rounded-md" required>
+                </div>
+                <div class="form-group">
+                    <label for="purchaseDevice">Aparelho:</label>
+                    <input type="text" id="purchaseDevice" placeholder="Ex: iPhone 16 Pro" class="rounded-md" required>
+                </div>
+                <div class="form-group">
+                    <label for="purchaseCost">Custo (R$):</label>
+                    <input type="number" id="purchaseCost" step="0.01" min="0" placeholder="Ex: 6449.00" class="rounded-md" required>
+                </div>
+                <div class="md:col-span-3 text-right">
+                    <button type="submit" class="btn btn-primary">Adicionar Compra</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="mb-10">
+            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Detalhes das Compras (Estoque e Custo)</h2>
+            <div class="table-responsive">
+                <table class="min-w-full">
+                    <thead>
+                        <tr>
+                            <th class="rounded-tl-lg">Data da Compra</th>
+                            <th>Aparelho</th>
+                            <th class="rounded-tr-lg">Custo (R$)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="purchasesTableBody">
+                        </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="mb-10 p-6 bg-green-50 rounded-xl shadow-md">
+            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Adicionar Nova Venda</h2>
+            <form id="addSaleForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div class="form-group">
+                    <label for="saleCustomer">Cliente:</label>
+                    <input type="text" id="saleCustomer" placeholder="Ex: Junior Pereira Agehab" class="rounded-md" required>
+                </div>
+                <div class="form-group">
+                    <label for="saleDevice">Aparelho:</label>
+                    <input type="text" id="saleDevice" placeholder="Ex: Apple Watch SE" class="rounded-md" required>
+                </div>
+                <div class="form-group">
+                    <label for="saleDate">Data da Venda:</label>
+                    <input type="date" id="saleDate" class="rounded-md" required>
+                </div>
+                <div class="form-group">
+                    <label for="salePrice">Valor de Venda (R$):</label>
+                    <input type="number" id="salePrice" step="0.01" min="0" placeholder="Ex: 2150.00" class="rounded-md" required>
+                </div>
+                <div class="form-group">
+                    <label for="saleCost">Custo (R$):</label>
+                    <input type="number" id="saleCost" step="0.01" min="0" placeholder="Ex: 1700.00" class="rounded-md" required>
+                </div>
+                <div class="form-group">
+                    <label for="saleDownPayment">Entrada (R$):</label>
+                    <input type="number" id="saleDownPayment" step="0.01" min="0" placeholder="Ex: 450.00" class="rounded-md" required>
+                </div>
+                <div class="form-group lg:col-span-3">
+                    <label for="saleInstallmentsCount">Número de Parcelas:</label>
+                    <input type="number" id="saleInstallmentsCount" min="0" value="0" class="rounded-md">
+                </div>
+                <div id="installmentAmountsContainer" class="form-group lg:col-span-3 grid grid-cols-2 md:grid-cols-4 gap-4 hidden">
+                    </div>
+                <div class="md:col-span-3 text-right">
+                    <button type="submit" class="btn btn-primary">Adicionar Venda</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="mb-10">
+            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Detalhes das Vendas e Recebimentos</h2>
+            <div class="table-responsive">
+                <table class="min-w-full">
+                    <thead>
+                        <tr>
+                            <th class="rounded-tl-lg">Cliente</th>
+                            <th>Aparelho</th>
+                            <th>Data da Venda</th>
+                            <th>Valor Total (R$)</th>
+                            <th>Entrada (R$)</th>
+                            <th>Status Parcelas</th>
+                            <th>A Receber (R$)</th>
+                            <th class="rounded-tr-lg">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="salesTableBody">
+                        </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="mb-10">
+            <h2 class="2xl font-semibold mb-5 text-gray-700">Recebimentos Mensais Previstos</h2>
+            <div class="mb-4 flex items-center gap-4">
+                <label for="monthSelector" class="font-medium text-gray-700">Selecionar Mês:</label>
+                <select id="monthSelector" class="rounded-md p-2 border border-gray-300"></select>
+            </div>
+            <div class="table-responsive">
+                <table class="min-w-full">
+                    <thead>
+                        <tr>
+                            <th class="rounded-tl-lg">Mês / Ano</th>
+                            <th class="rounded-tr-lg">Total Mensal (R$)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="monthlyReceivablesTableBody">
+                        </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="mb-10 p-6 bg-purple-50 rounded-xl shadow-md">
+            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Pesquisar Vendas por Cliente</h2>
+            <div class="form-group flex gap-4 items-end">
+                <div class="flex-grow">
+                    <label for="searchClientName">Nome do Cliente:</label>
+                    <input type="text" id="searchClientName" placeholder="Digite o nome do cliente" class="rounded-md">
+                </div>
+                <button id="searchSalesBtn" class="btn btn-info whitespace-nowrap">Pesquisar</button>
+            </div>
+            <div id="searchResults" class="mt-6 hidden search-results-table">
+                <h3 class="text-xl font-semibold mb-3 text-gray-700">Resultados da Pesquisa</h3>
+                <div class="table-responsive">
+                    <table class="min-w-full">
+                        <thead>
+                            <tr>
+                                <th>Cliente</th>
+                                <th>Aparelho</th>
+                                <th>Data Venda</th>
+                                <th>Valor Total</th>
+                                <th>Entrada</th>
+                                <th>Valor a Pagar</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="searchResultsTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
         import { getFirestore, collection, addDoc, updateDoc, doc, query, where, onSnapshot, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore.js";
@@ -42,6 +367,7 @@
 
         const calculateInstallmentDueDate = (saleDateStr, installmentIndex) => {
             const saleDate = new Date(saleDateStr + 'T00:00:00');
+            // Modificado para formatar o ano com apenas dois dígitos
             let dueDate = new Date(saleDate.getFullYear(), saleDate.getMonth() + 1 + installmentIndex, 10);
             return dueDate.toISOString().split('T')[0];
         };
@@ -187,7 +513,7 @@
             });
         };
 
-        const renderMonthlyReceivables = () => {
+        const renderMonthlyReceivables = (filterMonthYear = null) => {
             const tbody = document.getElementById('monthlyReceivablesTableBody');
             tbody.innerHTML = '';
 
@@ -200,6 +526,11 @@
                     if (!installment.paid) {
                         const dueDate = new Date(installment.dueDate + 'T00:00:00');
                         const monthYearKey = `${(dueDate.getMonth() + 1).toString().padStart(2, '0')}/${dueDate.getFullYear()}`;
+
+                        // Filtra pelo mês/ano selecionado, se houver
+                        if (filterMonthYear && filterMonthYear !== 'all' && monthYearKey !== filterMonthYear) {
+                            return; // Pula se não for o mês selecionado
+                        }
 
                         if (!monthlyData[monthYearKey]) {
                             monthlyData[monthYearKey] = {};
@@ -248,8 +579,45 @@
         const renderAll = () => {
             renderSummary();
             renderPurchases();
-            renderSales();
-            renderMonthlyReceivables();
+            // renderSales() é chamado pelo onSnapshot de sales
+            // renderMonthlyReceivables() é chamado pelo onSnapshot de sales
+        };
+
+        // Função para popular o seletor de meses
+        const populateMonthSelector = () => {
+            const monthSelector = document.getElementById('monthSelector');
+            monthSelector.innerHTML = '<option value="all">Todos os Meses</option>'; // Opção para ver todos
+
+            const uniqueMonths = new Set();
+            sales.forEach(sale => {
+                sale.installments.forEach(inst => {
+                    const dueDate = new Date(inst.dueDate + 'T00:00:00');
+                    uniqueMonths.add(`${(dueDate.getMonth() + 1).toString().padStart(2, '0')}/${dueDate.getFullYear()}`);
+                });
+            });
+
+            const sortedMonths = Array.from(uniqueMonths).sort((a, b) => {
+                const [monthA, yearA] = a.split('/').map(Number);
+                const [monthB, yearB] = b.split('/').map(Number);
+                if (yearA !== yearB) return yearA - yearB;
+                return monthA - monthB;
+            });
+
+            sortedMonths.forEach(monthYear => {
+                const option = document.createElement('option');
+                option.value = monthYear;
+                option.textContent = monthYear;
+                monthSelector.appendChild(option);
+            });
+
+            // Define o mês corrente como padrão
+            const today = new Date();
+            const currentMonthYear = `${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getFullYear()}`;
+            if (uniqueMonths.has(currentMonthYear)) {
+                monthSelector.value = currentMonthYear;
+            } else {
+                monthSelector.value = 'all'; // Se o mês atual não tiver dados, mostra todos
+            }
         };
 
         // --- Funções de Pesquisa ---
@@ -405,6 +773,11 @@
             searchSalesByClient(clientName);
         });
 
+        // Event listener para o seletor de meses
+        document.getElementById('monthSelector').addEventListener('change', (event) => {
+            renderMonthlyReceivables(event.target.value);
+        });
+
         // --- Inicialização e Listeners do Firestore ---
         document.addEventListener('DOMContentLoaded', async () => {
             // Espera a autenticação anônima ser concluída
@@ -507,8 +880,10 @@
             // Listener em tempo real para vendas
             onSnapshot(collection(db, 'sales'), (snapshot) => {
                 sales = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                renderSales();
-                renderMonthlyReceivables();
+                populateMonthSelector(); // Repopula o seletor de meses sempre que as vendas mudam
+                const selectedMonth = document.getElementById('monthSelector').value;
+                renderSales(); // Renderiza a tabela de vendas completa
+                renderMonthlyReceivables(selectedMonth); // Renderiza a tabela de recebimentos filtrada
                 renderSummary();
                 const clientName = document.getElementById('searchClientName').value.trim();
                 if (clientName) {
@@ -520,183 +895,5 @@
             });
         });
     </script>
-</head>
-<body class="bg-gray-100 p-4 sm:p-6 md:p-8">
-    <div class="container bg-white rounded-xl shadow-lg p-6 sm:p-8 md:p-10">
-        <h1 class="text-3xl sm:text-4xl font-bold text-center mb-6 text-gray-800">📊 Planilha de Controle Financeiro</h1>
-        <p class="text-center text-gray-600 mb-8">Gerencie suas compras, vendas e recebimentos de aparelhos eletrônicos.</p>
-
-        <section class="mb-10">
-            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Resumo Financeiro</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div class="summary-card">
-                    <p class="text-sm text-gray-500 mb-1">Capital Inicial</p>
-                    <p id="initialCapital" class="text-xl font-bold text-blue-600">R$15.000,00</p>
-                </div>
-                <div class="summary-card">
-                    <p class="text-sm text-gray-500 mb-1">Gasto Total em Compras</p>
-                    <p id="totalSpent" class="text-xl font-bold text-gray-800">R$0,00</p>
-                </div>
-                <div class="summary-card">
-                    <p class="text-sm text-gray-500 mb-1">Saldo Atual</p>
-                    <p id="currentBalance" class="text-xl font-bold text-gray-800">R$0,00</p>
-                    <div id="balanceWarning" class="warning mt-2 hidden">
-                        <p>⚠️ Atenção: Você excedeu o capital inicial de R$15.000!</p>
-                    </div>
-                </div>
-                <div class="summary-card">
-                    <p class="text-sm text-gray-500 mb-1">Lucro Líquido Previsto</p>
-                    <p id="netProfit" class="text-xl font-bold text-gray-800">R$0,00</p>
-                </div>
-            </div>
-        </section>
-
-        <section class="mb-10 p-6 bg-blue-50 rounded-xl shadow-md">
-            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Adicionar Nova Compra</h2>
-            <form id="addPurchaseForm" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div class="form-group">
-                    <label for="purchaseDate">Data da Compra:</label>
-                    <input type="date" id="purchaseDate" class="rounded-md" required>
-                </div>
-                <div class="form-group">
-                    <label for="purchaseDevice">Aparelho:</label>
-                    <input type="text" id="purchaseDevice" placeholder="Ex: iPhone 16 Pro" class="rounded-md" required>
-                </div>
-                <div class="form-group">
-                    <label for="purchaseCost">Custo (R$):</label>
-                    <input type="number" id="purchaseCost" step="0.01" min="0" placeholder="Ex: 6449.00" class="rounded-md" required>
-                </div>
-                <div class="md:col-span-3 text-right">
-                    <button type="submit" class="btn btn-primary">Adicionar Compra</button>
-                </div>
-            </form>
-        </section>
-
-        <section class="mb-10">
-            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Detalhes das Compras (Estoque e Custo)</h2>
-            <div class="table-responsive">
-                <table class="min-w-full">
-                    <thead>
-                        <tr>
-                            <th class="rounded-tl-lg">Data da Compra</th>
-                            <th>Aparelho</th>
-                            <th class="rounded-tr-lg">Custo (R$)</th>
-                        </tr>
-                    </thead>
-                    <tbody id="purchasesTableBody">
-                        </tbody>
-                </table>
-            </div>
-        </section>
-
-        <section class="mb-10 p-6 bg-green-50 rounded-xl shadow-md">
-            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Adicionar Nova Venda</h2>
-            <form id="addSaleForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div class="form-group">
-                    <label for="saleCustomer">Cliente:</label>
-                    <input type="text" id="saleCustomer" placeholder="Ex: Junior Pereira Agehab" class="rounded-md" required>
-                </div>
-                <div class="form-group">
-                    <label for="saleDevice">Aparelho:</label>
-                    <input type="text" id="saleDevice" placeholder="Ex: Apple Watch SE" class="rounded-md" required>
-                </div>
-                <div class="form-group">
-                    <label for="saleDate">Data da Venda:</label>
-                    <input type="date" id="saleDate" class="rounded-md" required>
-                </div>
-                <div class="form-group">
-                    <label for="salePrice">Valor de Venda (R$):</label>
-                    <input type="number" id="salePrice" step="0.01" min="0" placeholder="Ex: 2150.00" class="rounded-md" required>
-                </div>
-                <div class="form-group">
-                    <label for="saleCost">Custo (R$):</label>
-                    <input type="number" id="saleCost" step="0.01" min="0" placeholder="Ex: 1700.00" class="rounded-md" required>
-                </div>
-                <div class="form-group">
-                    <label for="saleDownPayment">Entrada (R$):</label>
-                    <input type="number" id="saleDownPayment" step="0.01" min="0" placeholder="Ex: 450.00" class="rounded-md" required>
-                </div>
-                <div class="form-group lg:col-span-3">
-                    <label for="saleInstallmentsCount">Número de Parcelas:</label>
-                    <input type="number" id="saleInstallmentsCount" min="0" value="0" class="rounded-md">
-                </div>
-                <div id="installmentAmountsContainer" class="form-group lg:col-span-3 grid grid-cols-2 md:grid-cols-4 gap-4 hidden">
-                    </div>
-                <div class="md:col-span-3 text-right">
-                    <button type="submit" class="btn btn-primary">Adicionar Venda</button>
-                </div>
-            </form>
-        </section>
-
-        <section class="mb-10">
-            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Detalhes das Vendas e Recebimentos</h2>
-            <div class="table-responsive">
-                <table class="min-w-full">
-                    <thead>
-                        <tr>
-                            <th class="rounded-tl-lg">Cliente</th>
-                            <th>Aparelho</th>
-                            <th>Data da Venda</th>
-                            <th>Valor Total (R$)</th>
-                            <th>Entrada (R$)</th>
-                            <th>Status Parcelas</th>
-                            <th>A Receber (R$)</th>
-                            <th class="rounded-tr-lg">Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody id="salesTableBody">
-                        </tbody>
-                </table>
-            </div>
-        </section>
-
-        <section class="mb-10">
-            <h2 class="2xl font-semibold mb-5 text-gray-700">Recebimentos Mensais Previstos</h2>
-            <div class="table-responsive">
-                <table class="min-w-full">
-                    <thead>
-                        <tr>
-                            <th class="rounded-tl-lg">Mês / Ano</th>
-                            <th class="rounded-tr-lg">Total Mensal (R$)</th>
-                        </tr>
-                    </thead>
-                    <tbody id="monthlyReceivablesTableBody">
-                        </tbody>
-                </table>
-            </div>
-        </section>
-
-        <section class="mb-10 p-6 bg-purple-50 rounded-xl shadow-md">
-            <h2 class="text-2xl font-semibold mb-5 text-gray-700">Pesquisar Vendas por Cliente</h2>
-            <div class="form-group flex gap-4 items-end">
-                <div class="flex-grow">
-                    <label for="searchClientName">Nome do Cliente:</label>
-                    <input type="text" id="searchClientName" placeholder="Digite o nome do cliente" class="rounded-md">
-                </div>
-                <button id="searchSalesBtn" class="btn btn-info whitespace-nowrap">Pesquisar</button>
-            </div>
-            <div id="searchResults" class="mt-6 hidden search-results-table">
-                <h3 class="text-xl font-semibold mb-3 text-gray-700">Resultados da Pesquisa</h3>
-                <div class="table-responsive">
-                    <table class="min-w-full">
-                        <thead>
-                            <tr>
-                                <th>Cliente</th>
-                                <th>Aparelho</th>
-                                <th>Data Venda</th>
-                                <th>Valor Total</th>
-                                <th>Entrada</th>
-                                <th>Valor a Pagar</th>
-                                <th>Status</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="searchResultsTableBody">
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-    </div>
 </body>
 </html>
