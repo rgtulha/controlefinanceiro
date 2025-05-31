@@ -493,11 +493,12 @@
                 const actionsCell = row.insertCell();
                 if (totalCount > 0 && paidCount < totalCount) { // Se houver parcelas e nem todas pagas
                     const payButton = document.createElement('button');
-                    payButton.textContent = 'Marcar Parcela'; // Ou "Ver/Pagar Parcelas"
+                    // Alterado de "Marcar Parcela" para "Pagar Parcela"
+                    payButton.textContent = 'Pagar Parcela';
                     payButton.className = 'btn btn-success text-xs py-1 px-2';
                     // Para simplificar, vou deixar o alerta. O ideal seria abrir um modal com a lista de parcelas.
                     payButton.onclick = () => {
-                        alert(`Para marcar parcelas de ${sale.customer} (${sale.device}), a funcionalidade ideal seria um modal para visualizar todas as parcelas e marcar uma por uma. Por enquanto, a opção "Pagar Próxima" não está implementada individualmente aqui, mas o código para marcar como paga via onSnapshot está ativo.`);
+                        alert(`Para pagar parcelas de ${sale.customer} (${sale.device}), a funcionalidade ideal seria um modal para visualizar todas as parcelas e marcar uma por uma. Por enquanto, a opção "Pagar Parcela" não está implementada individualmente aqui, mas o código para marcar como paga via onSnapshot está ativo.`);
                         // Exemplo de como poderia ser:
                         // const nextUnpaidIndex = sale.installments.findIndex(inst => !inst.paid);
                         // if (nextUnpaidIndex !== -1) {
