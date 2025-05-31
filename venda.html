@@ -367,7 +367,6 @@
 
         const calculateInstallmentDueDate = (saleDateStr, installmentIndex) => {
             const saleDate = new Date(saleDateStr + 'T00:00:00');
-            // Modificado para formatar o ano com apenas dois dígitos
             let dueDate = new Date(saleDate.getFullYear(), saleDate.getMonth() + 1 + installmentIndex, 10);
             return dueDate.toISOString().split('T')[0];
         };
@@ -489,23 +488,37 @@
                 remainingCell.textContent = formatCurrency(remainingToPay < 0 ? 0 : remainingToPay); // Não mostra negativo
                 remainingCell.className = remainingToPay > 0 ? 'negative' : 'positive';
 
-                // Coluna de Ações (Ex: Marcar Parcela ou Ver Detalhes)
+                // Coluna de Ações: Dropdown para selecionar parcela a pagar
                 const actionsCell = row.insertCell();
                 if (totalCount > 0 && paidCount < totalCount) { // Se houver parcelas e nem todas pagas
-                    const payButton = document.createElement('button');
-                    // Alterado de "Marcar Parcela" para "Pagar Parcela"
-                    payButton.textContent = 'Pagar Parcela';
-                    payButton.className = 'btn btn-success text-xs py-1 px-2';
-                    // Para simplificar, vou deixar o alerta. O ideal seria abrir um modal com a lista de parcelas.
-                    payButton.onclick = () => {
-                        alert(`Para pagar parcelas de ${sale.customer} (${sale.device}), a funcionalidade ideal seria um modal para visualizar todas as parcelas e marcar uma por uma. Por enquanto, a opção "Pagar Parcela" não está implementada individualmente aqui, mas o código para marcar como paga via onSnapshot está ativo.`);
-                        // Exemplo de como poderia ser:
-                        // const nextUnpaidIndex = sale.installments.findIndex(inst => !inst.paid);
-                        // if (nextUnpaidIndex !== -1) {
-                        //     markInstallmentAsPaid(sale.id, nextUnpaidIndex);
-                        // }
+                    const selectElement = document.createElement('select');
+                    selectElement.className = 'rounded-md p-1 border border-gray-300 text-sm';
+                    selectElement.style.minWidth = '150px'; // Ensure it's wide enough
+                    selectElement.innerHTML = '<option value="">Selecionar Parcela</option>'; // Default option
+
+                    sale.installments.forEach((installment, instIndex) => {
+                        const option = document.createElement('option');
+                        // Use a unique value for each option to identify sale and installment
+                        option.value = `${sale.id}_${instIndex}`;
+                        // Modificado para remover "Parcela", usar ° e ano com 2 dígitos
+                        const dueDateFormatted = new Date(installment.dueDate + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+                        option.textContent = `${instIndex + 1}°: ${formatCurrency(installment.amount)} (Venc: ${dueDateFormatted})`;
+
+                        if (installment.paid) {
+                            option.disabled = true;
+                            option.classList.add('text-gray-400', 'italic'); // Add classes for styling paid installments
+                        }
+                        selectElement.appendChild(option);
+                    });
+
+                    selectElement.onchange = async (event) => {
+                        const [selectedSaleId, selectedInstIndex] = event.target.value.split('_');
+                        if (selectedSaleId && selectedInstIndex) {
+                            await markInstallmentAsPaid(selectedSaleId, parseInt(selectedInstIndex));
+                            event.target.value = ''; // Reset dropdown after selection
+                        }
                     };
-                    actionsCell.appendChild(payButton);
+                    actionsCell.appendChild(selectElement);
                 } else if (totalCount === 0) {
                     actionsCell.textContent = 'À Vista';
                 } else {
