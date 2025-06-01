@@ -147,6 +147,67 @@
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
             padding: 1.5rem;
         }
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            background-color: #ffffff;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+            max-width: 500px;
+            width: 90%;
+            position: relative;
+            max-height: 80vh;
+            overflow-y: auto;
+            transform: translateY(-20px);
+            transition: transform 0.3s ease;
+        }
+        .modal-overlay.show .modal-content {
+            transform: translateY(0);
+        }
+        .modal-close-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #666;
+        }
+        .modal-close-btn:hover {
+            color: #333;
+        }
+        .modal-installment-list div {
+            padding: 0.5rem 0;
+            border-bottom: 1px dashed #e2e8f0;
+        }
+        .modal-installment-list div:last-child {
+            border-bottom: none;
+        }
+        .modal-installment-list .paid {
+            color: #a0aec0; /* Gray out paid installments */
+            font-style: italic;
+            text-decoration: line-through;
+        }
     </style>
 </head>
 <body class="bg-gray-100 p-4 sm:p-6 md:p-8">
@@ -331,6 +392,16 @@
         </section>
     </div>
 
+    <div id="installmentDetailsModal" class="modal-overlay">
+        <div class="modal-content">
+            <button class="modal-close-btn" onclick="hideInstallmentDetailsModal()">&times;</button>
+            <h3 class="text-xl font-bold mb-4 text-gray-800">Detalhes das Parcelas</h3>
+            <p class="mb-4 text-gray-600" id="modalSaleInfo"></p>
+            <div id="modalInstallmentList" class="modal-installment-list">
+                </div>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
         import { getFirestore, collection, addDoc, updateDoc, doc, query, where, onSnapshot, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore.js";
@@ -404,20 +475,12 @@
 
         const renderSummary = () => {
             const totalSpent = purchases.reduce((sum, item) => sum + item.cost, 0);
-            // const totalReceivedFromDownPayments = sales.reduce((sum, sale) => sum + sale.downPayment, 0);
-            // const totalReceivedFromPaidInstallments = sales.reduce((sum, sale) =>
-            //     sum + sale.installments.filter(inst => inst.paid).reduce((acc, inst) => acc + inst.amount, 0), 0);
-            // const totalReceived = totalReceivedFromDownPayments + totalReceivedFromPaidInstallments;
-
-            // const totalExpectedReceivables = sales.reduce((sum, sale) =>
-            //     sum + sale.downPayment + sale.installments.reduce((acc, inst) => acc + inst.amount, 0), 0);
-            // const totalCostOfSoldItems = sales.reduce((sum, sale) => sum + sale.cost, 0);
-
+            
             // CÁLCULO ATUALIZADO DO SALDO ATUAL: CAPITAL INICIAL - GASTO TOTAL EM COMPRAS
-            const currentBalance = INITIAL_CAPITAL - totalSpent; // ANTIGO: INITIAL_CAPITAL - totalSpent + totalReceived;
+            const currentBalance = INITIAL_CAPITAL - totalSpent; 
             
             // CÁLCULO ATUALIZADO DO LUCRO LÍQUIDO PREVISTO: (VALOR DE VENDA - VALOR DE COMPRA) DE CADA VENDA
-            const netProfit = sales.reduce((sum, sale) => sum + (sale.salePrice - sale.cost), 0); // ANTIGO: totalExpectedReceivables - totalCostOfSoldItems;
+            const netProfit = sales.reduce((sum, sale) => sum + (sale.salePrice - sale.cost), 0); 
 
             document.getElementById('totalSpent').textContent = formatCurrency(totalSpent);
             document.getElementById('currentBalance').textContent = formatCurrency(currentBalance);
@@ -444,14 +507,6 @@
                 row.insertCell().textContent = purchase.device;
                 row.insertCell().textContent = formatCurrency(purchase.cost);
             });
-        };
-
-        const markInstallmentAsPaid = async (saleId, installmentIndex) => {
-            const sale = sales.find(s => s.id === saleId);
-            if (sale) {
-                sale.installments[installmentIndex].paid = true;
-                await updateSaleInstallmentStatusInFirestore(saleId, sale.installments);
-            }
         };
 
         const renderSales = () => {
@@ -637,6 +692,42 @@
             }
         };
 
+        // --- Funções para o Modal de Detalhes das Parcelas ---
+        const showInstallmentDetailsModal = (sale) => {
+            const modal = document.getElementById('installmentDetailsModal');
+            const modalInstallmentList = document.getElementById('modalInstallmentList');
+            const modalSaleInfo = document.getElementById('modalSaleInfo');
+
+            modalInstallmentList.innerHTML = ''; // Limpa a lista anterior
+
+            modalSaleInfo.textContent = `Venda: ${sale.device} para ${sale.customer} (Valor Total: ${formatCurrency(sale.salePrice)})`;
+
+            if (sale.installments && sale.installments.length > 0) {
+                sale.installments.forEach((installment, index) => {
+                    const installmentDiv = document.createElement('div');
+                    const dueDateFormatted = new Date(installment.dueDate + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+                    
+                    let statusText = installment.paid ? 'Paga' : 'A Receber';
+                    let statusClass = installment.paid ? 'paid' : 'unpaid-status';
+
+                    installmentDiv.innerHTML = `
+                        <span class="${statusClass}">${index + 1}°: ${formatCurrency(installment.amount)} (Venc: ${dueDateFormatted}) - ${statusText}</span>
+                    `;
+                    modalInstallmentList.appendChild(installmentDiv);
+                });
+            } else {
+                const noInstallmentsDiv = document.createElement('div');
+                noInstallmentsDiv.textContent = 'Esta venda não possui parcelas.';
+                modalInstallmentList.appendChild(noInstallmentsDiv);
+            }
+
+            modal.classList.add('show'); // Exibe o modal
+        };
+
+        const hideInstallmentDetailsModal = () => {
+            document.getElementById('installmentDetailsModal').classList.remove('show'); // Esconde o modal
+        };
+
         // --- Funções de Pesquisa ---
         const searchSalesByClient = async (clientName) => {
             const resultsBody = document.getElementById('searchResultsTableBody');
@@ -654,7 +745,7 @@
                 const querySnapshot = await getDocs(q);
 
                 if (querySnapshot.empty) {
-                    resultsBody.innerHTML = `<tr><td colspan="6" class="text-center py-4">Nenhuma venda encontrada para "${clientName}".</td></tr>`;
+                    resultsBody.innerHTML = `<tr><td colspan="8" class="text-center py-4">Nenhuma venda encontrada para "${clientName}".</td></tr>`;
                 } else {
                     querySnapshot.forEach(doc => {
                         const sale = doc.data();
@@ -687,17 +778,14 @@
 
                         // Ações para parcelas da pesquisa
                         const actionsCell = row.insertCell();
-                        if (remainingToPay > 0 && sale.installments.length > 0) {
-                            const payRemainingBtn = document.createElement('button');
-                            payRemainingBtn.textContent = 'Ver Detalhes';
-                            payRemainingBtn.className = 'btn btn-info text-xs py-1 px-2'; // Alterado para btn-info
-                            payRemainingBtn.onclick = () => {
-                                document.getElementById('salesTableBody').scrollIntoView({ behavior: 'smooth' });
-                                alert(`Vendas do cliente ${sale.customer} (${sale.device}) estão detalhadas na seção "Detalhes das Vendas e Recebimentos".`);
-                            };
-                            actionsCell.appendChild(payRemainingBtn);
-                        } else if (remainingToPay <= 0) {
-                            actionsCell.textContent = 'Nenhuma ação pendente';
+                        if (sale.installments && sale.installments.length > 0) {
+                            const detailsButton = document.createElement('button');
+                            detailsButton.textContent = 'Ver Detalhes';
+                            detailsButton.className = 'btn btn-info text-xs py-1 px-2';
+                            detailsButton.onclick = () => showInstallmentDetailsModal(sale); // Chama a função do modal
+                            actionsCell.appendChild(detailsButton);
+                        } else {
+                            actionsCell.textContent = 'À Vista';
                         }
                     });
                 }
