@@ -724,7 +724,8 @@
             modal.classList.add('show'); // Exibe o modal
         };
 
-        const hideInstallmentDetailsModal = () => {
+        // Tornando a função global para ser acessível do onclick no HTML
+        window.hideInstallmentDetailsModal = () => {
             document.getElementById('installmentDetailsModal').classList.remove('show'); // Esconde o modal
         };
 
