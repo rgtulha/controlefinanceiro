@@ -199,14 +199,20 @@
         .modal-installment-list div {
             padding: 0.5rem 0;
             border-bottom: 1px dashed #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         .modal-installment-list div:last-child {
             border-bottom: none;
         }
-        .modal-installment-list .paid {
+        .modal-installment-list .paid-item {
             color: #a0aec0; /* Gray out paid installments */
             font-style: italic;
             text-decoration: line-through;
+        }
+        .modal-installment-list .unpaid-item {
+            color: #333;
         }
     </style>
 </head>
@@ -227,14 +233,14 @@
                     <p id="totalSpent" class="text-xl font-bold text-gray-800">R$0,00</p>
                 </div>
                 <div class="summary-card">
-                    <p class="text-sm text-gray-500 mb-1">Saldo Atual</p>
+                    <p id="currentBalanceLabel" class="text-sm text-gray-500 mb-1">Saldo Atual</p>
                     <p id="currentBalance" class="text-xl font-bold text-gray-800">R$0,00</p>
                     <div id="balanceWarning" class="warning mt-2 hidden">
                         <p>⚠️ Atenção: Você excedeu o capital inicial de R$15.000!</p>
                     </div>
                 </div>
                 <div class="summary-card">
-                    <p class="text-sm text-gray-500 mb-1">Lucro Líquido Previsto</p>
+                    <p id="netProfitLabel" class="text-sm text-gray-500 mb-1">Lucro Líquido Previsto</p>
                     <p id="netProfit" class="text-xl font-bold text-gray-800">R$0,00</p>
                 </div>
             </div>
@@ -394,7 +400,7 @@
 
     <div id="installmentDetailsModal" class="modal-overlay">
         <div class="modal-content">
-            <button class="modal-close-btn" onclick="hideInstallmentDetailsModal()">&times;</button>
+            <button class="modal-close-btn" onclick="window.hideInstallmentDetailsModal()">&times;</button>
             <h3 class="text-xl font-bold mb-4 text-gray-800">Detalhes das Parcelas</h3>
             <p class="mb-4 text-gray-600" id="modalSaleInfo"></p>
             <div id="modalInstallmentList" class="modal-installment-list">
@@ -426,12 +432,7 @@
         let purchases = [];
         let sales = [];
 
-        // Autenticação anônima para que o usuário possa interagir com o Firestore
-        signInAnonymously(auth).catch((error) => {
-            console.error("Erro na autenticação anônima:", error);
-            alert("Não foi possível conectar ao banco de dados. Verifique sua conexão ou as configurações do Firebase.");
-        });
-
+        // Funções utilitárias formatCurrency e calculateInstallmentDueDate
         const formatCurrency = (value) => {
             return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
         };
@@ -471,7 +472,7 @@
             }
         };
 
-        // --- Funções de Renderização (Agora com base em dados de Firestore) ---
+        // --- Funções de Renderização e Lógica Principal ---
 
         const renderSummary = () => {
             const totalSpent = purchases.reduce((sum, item) => sum + item.cost, 0);
@@ -507,6 +508,30 @@
                 row.insertCell().textContent = purchase.device;
                 row.insertCell().textContent = formatCurrency(purchase.cost);
             });
+        };
+
+        // Função para alternar o status de pagamento de uma parcela
+        // Definida no escopo global (window) para ser acessível pelos eventos onclick no HTML
+        window.toggleInstallmentPaidStatus = async (saleId, installmentIndex) => {
+            console.log(`Tentando alternar status da parcela ${installmentIndex} para venda ${saleId}`);
+            const sale = sales.find(s => s.id === saleId);
+            if (sale) {
+                const updatedInstallments = [...sale.installments];
+                updatedInstallments[installmentIndex].paid = !updatedInstallments[installmentIndex].paid;
+
+                await updateSaleInstallmentStatusInFirestore(saleId, updatedInstallments);
+
+                // Se o modal estiver aberto para esta venda, re-renderize-o
+                const currentModalSale = document.getElementById('installmentDetailsModal').dataset.saleId;
+                if (currentModalSale === saleId) {
+                    const updatedSale = sales.find(s => s.id === saleId);
+                    if (updatedSale) {
+                         window.showInstallmentDetailsModal(updatedSale); // Re-renderiza o modal com os dados atualizados
+                    }
+                }
+            } else {
+                console.error("Venda não encontrada para alternar status da parcela.");
+            }
         };
 
         const renderSales = () => {
@@ -556,9 +581,7 @@
 
                     sale.installments.forEach((installment, instIndex) => {
                         const option = document.createElement('option');
-                        // Use a unique value for each option to identify sale and installment
                         option.value = `${sale.id}_${instIndex}`;
-                        // Modificado para remover "Parcela", usar ° e ano com 2 dígitos
                         const dueDateFormatted = new Date(installment.dueDate + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
                         option.textContent = `${instIndex + 1}°: ${formatCurrency(installment.amount)} (Venc: ${dueDateFormatted})`;
 
@@ -572,7 +595,7 @@
                     selectElement.onchange = async (event) => {
                         const [selectedSaleId, selectedInstIndex] = event.target.value.split('_');
                         if (selectedSaleId && selectedInstIndex) {
-                            await markInstallmentAsPaid(selectedSaleId, parseInt(selectedInstIndex));
+                            await window.toggleInstallmentPaidStatus(selectedSaleId, parseInt(selectedInstIndex));
                             event.target.value = ''; // Reset dropdown after selection
                         }
                     };
@@ -651,11 +674,8 @@
         const renderAll = () => {
             renderSummary();
             renderPurchases();
-            // renderSales() é chamado pelo onSnapshot de sales
-            // renderMonthlyReceivables() é chamado pelo onSnapshot de sales
         };
 
-        // Função para popular o seletor de meses
         const populateMonthSelector = () => {
             const monthSelector = document.getElementById('monthSelector');
             monthSelector.innerHTML = '<option value="all">Todos os Meses</option>'; // Opção para ver todos
@@ -682,24 +702,24 @@
                 monthSelector.appendChild(option);
             });
 
-            // Define o mês corrente como padrão
             const today = new Date();
             const currentMonthYear = `${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getFullYear()}`;
             if (uniqueMonths.has(currentMonthYear)) {
                 monthSelector.value = currentMonthYear;
             } else {
-                monthSelector.value = 'all'; // Se o mês atual não tiver dados, mostra todos
+                monthSelector.value = 'all'; 
             }
         };
 
-        // --- Funções para o Modal de Detalhes das Parcelas ---
-        const showInstallmentDetailsModal = (sale) => {
+        window.showInstallmentDetailsModal = (sale) => {
+            console.log("showInstallmentDetailsModal chamada com venda:", sale);
             const modal = document.getElementById('installmentDetailsModal');
             const modalInstallmentList = document.getElementById('modalInstallmentList');
             const modalSaleInfo = document.getElementById('modalSaleInfo');
 
-            modalInstallmentList.innerHTML = ''; // Limpa a lista anterior
+            modal.dataset.saleId = sale.id;
 
+            modalInstallmentList.innerHTML = ''; 
             modalSaleInfo.textContent = `Venda: ${sale.device} para ${sale.customer} (Valor Total: ${formatCurrency(sale.salePrice)})`;
 
             if (sale.installments && sale.installments.length > 0) {
@@ -708,11 +728,22 @@
                     const dueDateFormatted = new Date(installment.dueDate + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
                     
                     let statusText = installment.paid ? 'Paga' : 'A Receber';
-                    let statusClass = installment.paid ? 'paid' : 'unpaid-status';
+                    let itemClass = installment.paid ? 'paid-item' : 'unpaid-item'; 
 
-                    installmentDiv.innerHTML = `
-                        <span class="${statusClass}">${index + 1}°: ${formatCurrency(installment.amount)} (Venc: ${dueDateFormatted}) - ${statusText}</span>
-                    `;
+                    const buttonText = installment.paid ? 'Desmarcar' : 'Marcar como Paga';
+                    const buttonClass = installment.paid ? 'btn btn-secondary text-xs py-1 px-2' : 'btn btn-success text-xs py-1 px-2';
+
+                    const statusSpan = document.createElement('span');
+                    statusSpan.className = itemClass;
+                    statusSpan.textContent = `${index + 1}°: ${formatCurrency(installment.amount)} (Venc: ${dueDateFormatted}) - ${statusText}`;
+                    installmentDiv.appendChild(statusSpan);
+
+                    const button = document.createElement('button');
+                    button.className = buttonClass;
+                    button.textContent = buttonText;
+                    button.onclick = () => window.toggleInstallmentPaidStatus(sale.id, index);
+                    installmentDiv.appendChild(button);
+                    
                     modalInstallmentList.appendChild(installmentDiv);
                 });
             } else {
@@ -721,19 +752,18 @@
                 modalInstallmentList.appendChild(noInstallmentsDiv);
             }
 
-            modal.classList.add('show'); // Exibe o modal
+            modal.classList.add('show'); 
         };
 
-        // Tornando a função global para ser acessível do onclick no HTML
         window.hideInstallmentDetailsModal = () => {
-            document.getElementById('installmentDetailsModal').classList.remove('show'); // Esconde o modal
+            document.getElementById('installmentDetailsModal').classList.remove('show'); 
+            document.getElementById('installmentDetailsModal').dataset.saleId = ''; 
         };
 
-        // --- Funções de Pesquisa ---
         const searchSalesByClient = async (clientName) => {
             const resultsBody = document.getElementById('searchResultsTableBody');
             resultsBody.innerHTML = '';
-            document.getElementById('searchResults').classList.add('hidden'); // Oculta resultados antigos
+            document.getElementById('searchResults').classList.add('hidden'); 
 
             if (!clientName) {
                 alert('Por favor, digite o nome do cliente para pesquisar.');
@@ -741,7 +771,6 @@
             }
 
             try {
-                // Consulta no Firestore (Modular API)
                 const q = query(collection(db, 'sales'), where('customer', '==', clientName));
                 const querySnapshot = await getDocs(q);
 
@@ -750,7 +779,7 @@
                 } else {
                     querySnapshot.forEach(doc => {
                         const sale = doc.data();
-                        const saleId = doc.id; // Obter o ID do documento
+                        const saleId = doc.id; 
 
                         const totalInstallmentsValue = sale.installments.reduce((sum, inst) => sum + inst.amount, 0);
                         const paidInstallmentsValue = sale.installments.filter(inst => inst.paid).reduce((sum, inst) => sum + inst.amount, 0);
@@ -763,7 +792,7 @@
                         } else if (sale.installments.some(inst => !inst.paid)) {
                             status = 'Parcelas Pendentes';
                         } else {
-                            status = 'Em Aberto (Verificar)'; // Caso tenha entrada mas sem parcelas ou algo assim
+                            status = 'Em Aberto (Verificar)'; 
                         }
 
                         const row = resultsBody.insertRow();
@@ -773,24 +802,23 @@
                         row.insertCell().textContent = formatCurrency(totalSaleValue);
                         row.insertCell().textContent = formatCurrency(sale.downPayment);
                         const remainingCell = row.insertCell();
-                        remainingCell.textContent = formatCurrency(remainingToPay < 0 ? 0 : remainingToPay); // Não mostrar negativo
+                        remainingCell.textContent = formatCurrency(remainingToPay < 0 ? 0 : remainingToPay); 
                         remainingCell.className = remainingToPay > 0 ? 'negative' : 'positive';
                         row.insertCell().textContent = status;
 
-                        // Ações para parcelas da pesquisa
                         const actionsCell = row.insertCell();
                         if (sale.installments && sale.installments.length > 0) {
                             const detailsButton = document.createElement('button');
                             detailsButton.textContent = 'Ver Detalhes';
                             detailsButton.className = 'btn btn-info text-xs py-1 px-2';
-                            detailsButton.onclick = () => showInstallmentDetailsModal(sale); // Chama a função do modal
+                            detailsButton.onclick = () => window.showInstallmentDetailsModal(sale); 
                             actionsCell.appendChild(detailsButton);
                         } else {
                             actionsCell.textContent = 'À Vista';
                         }
                     });
                 }
-                document.getElementById('searchResults').classList.remove('hidden'); // Mostra a seção de resultados
+                document.getElementById('searchResults').classList.remove('hidden'); 
             } catch (error) {
                 console.error("Erro ao pesquisar vendas: ", error);
                 alert("Ocorreu um erro ao pesquisar as vendas. Verifique o console para mais detalhes.");
@@ -843,7 +871,7 @@
                     cost,
                     downPayment,
                     installments: newInstallments,
-                    createdAt: serverTimestamp() // Modular API
+                    createdAt: serverTimestamp() 
                 });
                 event.target.reset();
                 document.getElementById('installmentAmountsContainer').classList.add('hidden');
@@ -873,26 +901,22 @@
             }
         });
 
-        // Event listener para o botão de pesquisa
         document.getElementById('searchSalesBtn').addEventListener('click', () => {
             const clientName = document.getElementById('searchClientName').value.trim();
             searchSalesByClient(clientName);
         });
 
-        // Event listener para o seletor de meses
         document.getElementById('monthSelector').addEventListener('change', (event) => {
             renderMonthlyReceivables(event.target.value);
         });
 
-        // --- Inicialização e Listeners do Firestore ---
         document.addEventListener('DOMContentLoaded', async () => {
-            // Espera a autenticação anônima ser concluída
+            console.log("DOM totalmente carregado. Iniciando script...");
             await signInAnonymously(auth).catch(error => {
                 console.error("Erro na autenticação anônima durante o carregamento:", error);
                 alert("Não foi possível conectar ao banco de dados. Verifique sua conexão ou as configurações do Firebase.");
             });
 
-            // Verifica se as coleções estão vazias e popula com dados iniciais
             const checkAndPopulateInitialData = async () => {
                 const purchasesSnapshot = await getDocs(collection(db, 'purchases'));
                 const salesSnapshot = await getDocs(collection(db, 'sales'));
@@ -970,10 +994,8 @@
                 }
             };
 
-            // Chama a função para verificar e popular dados iniciais
             await checkAndPopulateInitialData();
 
-            // Listener em tempo real para compras
             onSnapshot(collection(db, 'purchases'), (snapshot) => {
                 purchases = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderPurchases();
@@ -983,13 +1005,12 @@
                 alert("Erro ao carregar dados de compras do banco de dados.");
             });
 
-            // Listener em tempo real para vendas
             onSnapshot(collection(db, 'sales'), (snapshot) => {
                 sales = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                populateMonthSelector(); // Repopula o seletor de meses sempre que as vendas mudam
+                populateMonthSelector(); 
                 const selectedMonth = document.getElementById('monthSelector').value;
-                renderSales(); // Renderiza a tabela de vendas completa
-                renderMonthlyReceivables(selectedMonth); // Renderiza a tabela de recebimentos filtrada
+                renderSales(); 
+                renderMonthlyReceivables(selectedMonth); 
                 renderSummary();
                 const clientName = document.getElementById('searchClientName').value.trim();
                 if (clientName) {
