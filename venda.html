@@ -262,7 +262,7 @@
                     <input type="number" id="purchaseCost" step="0.01" min="0" placeholder="Ex: 6449.00" class="rounded-md" required>
                 </div>
                 <div class="md:col-span-3 text-right">
-                    <button type="submit" class="btn btn-primary">Adicionar Compra</button>
+                    <button type="submit" class="btn btn-primary">Adicionar Compa</button>
                 </div>
             </form>
         </section>
@@ -477,10 +477,20 @@
         const renderSummary = () => {
             const totalSpent = purchases.reduce((sum, item) => sum + item.cost, 0);
             
-            // CÁLCULO ATUALIZADO DO SALDO ATUAL: CAPITAL INICIAL - GASTO TOTAL EM COMPRAS
-            const currentBalance = INITIAL_CAPITAL - totalSpent; 
+            // Calcula o total recebido APENAS de parcelas pagas
+            let totalReceivedFromPaidInstallments = 0;
+            sales.forEach(sale => {
+                sale.installments.forEach(inst => {
+                    if (inst.paid) {
+                        totalReceivedFromPaidInstallments += inst.amount;
+                    }
+                });
+            });
+
+            // SALDO ATUAL: CAPITAL INICIAL - GASTO TOTAL EM COMPRAS + RECEBIDO DE PARCELAS PAGAS
+            const currentBalance = INITIAL_CAPITAL - totalSpent + totalReceivedFromPaidInstallments;
             
-            // CÁLCULO ATUALIZADO DO LUCRO LÍQUIDO PREVISTO: (VALOR DE VENDA - VALOR DE COMPRA) DE CADA VENDA
+            // LUCRO LÍQUIDO PREVISTO: (VALOR DE VENDA - VALOR DE COMPRA) DE CADA VENDA
             const netProfit = sales.reduce((sum, sale) => sum + (sale.salePrice - sale.cost), 0); 
 
             document.getElementById('totalSpent').textContent = formatCurrency(totalSpent);
@@ -539,9 +549,11 @@
             tbody.innerHTML = '';
 
             sales.forEach((sale) => {
-                const row = tbody.insertRow();
+                const row = tbody.insertRow(); // CORRIGIDO: Agora insere uma nova linha na tabela
+                
                 const totalInstallmentsValue = sale.installments.reduce((sum, inst) => sum + inst.amount, 0);
                 const paidInstallmentsValue = sale.installments.filter(inst => inst.paid).reduce((sum, inst) => sum + inst.amount, 0);
+                // O valor a receber agora é o total da venda menos a entrada e as parcelas já pagas.
                 const remainingToPay = (sale.salePrice - sale.downPayment) - paidInstallmentsValue;
 
                 const paidCount = sale.installments.filter(inst => inst.paid).length;
