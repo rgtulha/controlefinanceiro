@@ -571,39 +571,16 @@
                 remainingCell.textContent = formatCurrency(remainingToPay < 0 ? 0 : remainingToPay); // Não mostra negativo
                 remainingCell.className = remainingToPay > 0 ? 'negative' : 'positive';
 
-                // Coluna de Ações: Dropdown para selecionar parcela a pagar
+                // Coluna de Ações: Botão "Gerenciar Parcelas"
                 const actionsCell = row.insertCell();
-                if (totalCount > 0 && paidCount < totalCount) { // Se houver parcelas e nem todas pagas
-                    const selectElement = document.createElement('select');
-                    selectElement.className = 'rounded-md p-1 border border-gray-300 text-sm';
-                    selectElement.style.minWidth = '150px'; // Ensure it's wide enough
-                    selectElement.innerHTML = '<option value="">Selecionar Parcela</option>'; // Default option
-
-                    sale.installments.forEach((installment, instIndex) => {
-                        const option = document.createElement('option');
-                        option.value = `${sale.id}_${instIndex}`;
-                        const dueDateFormatted = new Date(installment.dueDate + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
-                        option.textContent = `${instIndex + 1}°: ${formatCurrency(installment.amount)} (Venc: ${dueDateFormatted})`;
-
-                        if (installment.paid) {
-                            option.disabled = true;
-                            option.classList.add('text-gray-400', 'italic'); // Add classes for styling paid installments
-                        }
-                        selectElement.appendChild(option);
-                    });
-
-                    selectElement.onchange = async (event) => {
-                        const [selectedSaleId, selectedInstIndex] = event.target.value.split('_');
-                        if (selectedSaleId && selectedInstIndex) {
-                            await window.toggleInstallmentPaidStatus(selectedSaleId, parseInt(selectedInstIndex));
-                            event.target.value = ''; // Reset dropdown after selection
-                        }
-                    };
-                    actionsCell.appendChild(selectElement);
-                } else if (totalCount === 0) {
+                if (totalCount > 0) { // Se houver parcelas
+                    const manageButton = document.createElement('button');
+                    manageButton.textContent = 'Gerenciar Parcelas';
+                    manageButton.className = 'btn btn-info text-xs py-1 px-2';
+                    manageButton.onclick = () => window.showInstallmentDetailsModal(sale); 
+                    actionsCell.appendChild(manageButton);
+                } else { // Se não houver parcelas (à vista)
                     actionsCell.textContent = 'À Vista';
-                } else {
-                    actionsCell.textContent = 'Todas Recebidas';
                 }
             });
         };
