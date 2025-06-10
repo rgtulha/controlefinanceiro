@@ -223,7 +223,7 @@
 
         <section class="mb-10">
             <h2 class="text-2xl font-semibold mb-5 text-gray-700">Resumo Financeiro</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div class="summary-card">
                     <p class="text-sm text-gray-500 mb-1">Capital Inicial</p>
                     <p id="initialCapital" class="text-xl font-bold text-blue-600">R$15.000,00</p>
@@ -231,13 +231,6 @@
                 <div class="summary-card">
                     <p class="text-sm text-gray-500 mb-1">Gasto Total em Compras</p>
                     <p id="totalSpent" class="text-xl font-bold text-gray-800">R$0,00</p>
-                </div>
-                <div class="summary-card">
-                    <p id="currentBalanceLabel" class="text-sm text-gray-500 mb-1">Saldo Atual</p>
-                    <p id="currentBalance" class="text-xl font-bold text-gray-800">R$0,00</p>
-                    <div id="balanceWarning" class="warning mt-2 hidden">
-                        <p>⚠️ Atenção: Você excedeu o capital inicial de R$15.000!</p>
-                    </div>
                 </div>
                 <div class="summary-card">
                     <p id="netProfitLabel" class="text-sm text-gray-500 mb-1">Lucro Líquido Previsto</p>
@@ -477,6 +470,12 @@
         const renderSummary = () => {
             const totalSpent = purchases.reduce((sum, item) => sum + item.cost, 0);
             
+            // Calcula o total recebido de ENTRADAS
+            let totalReceivedFromDownPayments = 0;
+            sales.forEach(sale => {
+                totalReceivedFromDownPayments += sale.downPayment;
+            });
+
             // Calcula o total recebido APENAS de parcelas pagas
             let totalReceivedFromPaidInstallments = 0;
             sales.forEach(sale => {
@@ -487,22 +486,23 @@
                 });
             });
 
-            // SALDO ATUAL: CAPITAL INICIAL - GASTO TOTAL EM COMPRAS + RECEBIDO DE PARCELAS PAGAS
-            const currentBalance = INITIAL_CAPITAL - totalSpent + totalReceivedFromPaidInstallments;
+            // O cálculo do Saldo Atual foi removido conforme a solicitação.
+            // Para referência, a última lógica era:
+            // const currentBalance = (totalSpent - totalReceivedFromDownPayments) + totalReceivedFromPaidInstallments;
             
             // LUCRO LÍQUIDO PREVISTO: (VALOR DE VENDA - VALOR DE COMPRA) DE CADA VENDA
             const netProfit = sales.reduce((sum, sale) => sum + (sale.salePrice - sale.cost), 0); 
 
             document.getElementById('totalSpent').textContent = formatCurrency(totalSpent);
-            document.getElementById('currentBalance').textContent = formatCurrency(currentBalance);
-            document.getElementById('currentBalance').className = currentBalance >= 0 ? 'text-xl font-bold positive' : 'text-xl font-bold negative';
+            // Removido: document.getElementById('currentBalance').textContent = formatCurrency(currentBalance);
+            // Removido: document.getElementById('currentBalance').className = currentBalance >= 0 ? 'text-xl font-bold positive' : 'text-xl font-bold negative';
 
-            const balanceWarning = document.getElementById('balanceWarning');
-            if (totalSpent > INITIAL_CAPITAL) {
-                balanceWarning.classList.remove('hidden');
-            } else {
-                balanceWarning.classList.add('hidden');
-            }
+            // Removido: const balanceWarning = document.getElementById('balanceWarning');
+            // Removido: if (totalSpent > INITIAL_CAPITAL) {
+            // Removido:     balanceWarning.classList.remove('hidden');
+            // Removido: } else {
+            // Removido:     balanceWarning.classList.add('hidden');
+            // Removido: }
 
             document.getElementById('netProfit').textContent = formatCurrency(netProfit);
             document.getElementById('netProfit').className = netProfit >= 0 ? 'text-xl font-bold positive' : 'text-xl font-bold negative';
@@ -549,7 +549,7 @@
             tbody.innerHTML = '';
 
             sales.forEach((sale) => {
-                const row = tbody.insertRow(); // CORRIGIDO: Agora insere uma nova linha na tabela
+                const row = tbody.insertRow(); 
                 
                 const totalInstallmentsValue = sale.installments.reduce((sum, inst) => sum + inst.amount, 0);
                 const paidInstallmentsValue = sale.installments.filter(inst => inst.paid).reduce((sum, inst) => sum + inst.amount, 0);
@@ -663,6 +663,8 @@
         const renderAll = () => {
             renderSummary();
             renderPurchases();
+            renderSales();
+            renderMonthlyReceivables();
         };
 
         const populateMonthSelector = () => {
@@ -808,7 +810,8 @@
                     });
                 }
                 document.getElementById('searchResults').classList.remove('hidden'); 
-            } catch (error) {
+            }
+            catch (error) {
                 console.error("Erro ao pesquisar vendas: ", error);
                 alert("Ocorreu um erro ao pesquisar as vendas. Verifique o console para mais detalhes.");
             }
